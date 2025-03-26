@@ -1,0 +1,1100 @@
+---
+description: Core Architecture Standards for React Native
+globs: .tsx
+alwaysApply: false
+---
+# Core Architecture Standards for React Native
+
+This document outlines the core architectural standards for React Native applications. It provides guidelines for structuring projects, organizing code, and applying architectural patterns to ensure maintainability, scalability, and performance. These standards are based on the latest React Native features and best practices.
+
+## 1. Project Structure and Organization
+
+### 1.1. Standard
+
+Adopt a feature-based or domain-driven structure for your React Native projects.
+
+*   **Do This:** Group related components, hooks, utilities, and styles within a dedicated directory representing a specific feature or domain area.
+*   **Don't Do This:** Organize files based on their type (e.g., "components/", "screens/", "utils/") at the top level, as this leads to scattered, less maintainable code.
+
+**Why:** Feature-based organization improves code discoverability, simplifies refactoring, and minimizes dependencies between unrelated parts of the application. It also supports team-based development by allowing developers to focus on specific areas of the codebase.
+
+**Example:**
+
+"""
+src/
+├── components/  # Shared, reusable components
+├── features/
+│   ├── authentication/
+│   │   ├── screens/
+│   │   │   ├── LoginScreen.tsx
+│   │   │   └── SignupScreen.tsx
+│   │   ├── components/
+│   │   │   ├── AuthForm.tsx
+│   │   │   └── PasswordInput.tsx
+│   │   ├── hooks/
+│   │   │   └── useAuth.ts
+│   │   ├── services/
+│   │   │   └── authService.ts
+│   │   └── styles/
+│   │       └── authStyles.ts
+│   ├── home/
+│   │   ├── screens/
+│   │   │   └── HomeScreen.tsx
+│   │   ├── components/
+│   │   │   └── WelcomeMessage.tsx
+│   │   └── ...
+├── navigation/
+│   └── AppNavigator.tsx
+├── services/  # Global services for APIs
+│   └── api.ts
+├── types/      # Shared Typescript types
+│   └── index.ts
+└── App.tsx
+"""
+
+### 1.2. Standard
+
+Use a clear naming convention for files and directories.
+
+*   **Do This:** Use PascalCase for component names (e.g., "LoginScreen.tsx"), camelCase for variables and functions (e.g., "handleLogin", "apiClient"), and descriptive names for directories (e.g., "authentication", "home").
+*   **Don't Do This:** Use cryptic abbreviations or inconsistent naming styles.
+
+**Why:** Consistent naming improves code readability and makes it easier to understand the purpose of each file and directory.
+
+**Example:**
+
+"""
+src/
+└── features/
+    └── profile/
+        ├── screens/
+        │   └── ProfileScreen.tsx  // Correct: PascalCase for components
+        ├── components/
+        │   └── UserAvatar.tsx    // Correct: PascalCase for components
+        ├── hooks/
+        │   └── useProfileData.ts // Correct: camelCase for hooks
+        ├── utils/
+        │   └── profileUtils.ts   // Correct: camelCase for utilities
+"""
+
+### 1.3. Standard
+
+Employ a modular architecture with well-defined boundaries.
+
+*   **Do This:** Divide the application into independent modules responsible for specific functionalities (e.g., authentication, data fetching, UI rendering).
+*   **Don't Do This:** Create monolithic components that handle multiple responsibilities or allow tight coupling between unrelated modules.
+
+**Why:** Modular architecture improves code reusability, simplifies testing, and allows for easier maintenance and scaling of the application.
+
+**Example:**
+
+"""typescript
+// authentication/services/authService.ts
+import api from '../../services/api'; //Import the API from Global Services
+
+const login = async (credentials: LoginCredentials): Promise<User> => {
+  const response = await api.post('/login', credentials);
+  return response.data;
+};
+
+const signup = async (userData: SignupData): Promise<User> => {
+    const response = await api.post('/signup', userData);
+    return response.data;
+}
+
+export default { login, signup };
+
+// authentication/screens/LoginScreen.tsx
+import React, { useState } from 'react';
+import authService from '../services/authService';
+
+const LoginScreen = () => {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+
+  const handleLogin = async () => {
+    try {
+      const user = await authService.login({ username, password });
+      // Handle successful login
+      console.log('Logged in:', user);
+    } catch (error) {
+      // Handle login error
+      console.error('Login failed:', error);
+    }
+  };
+
+  return (
+    // ... UI elements for login form ...
+    <Button title="Login" onPress={handleLogin} />
+  );
+};
+
+export default LoginScreen;
+
+"""
+
+**Anti-pattern:**
+
+Avoid directly importing components or UI elements from other features directly into a single component. For instance, having navigation logic embedded deeply inside a component makes it tightly coupled and hard to test. Instead, navigation should be handled by services or navigation components specifically to maintain modular structure.
+
+## 2. Architectural Patterns
+
+### 2.1. Standard
+
+Favor the use of React Context API or state management libraries like Redux or Zustand for managing global application state.
+
+*   **Do This:** Use Context API for simple state management scenarios or opt for a state management library for complex applications with centralized data needs.
+*   **Don't Do This:** Pass data through multiple levels of components using props (prop drilling) or rely on mutable global variables for storing application state.
+
+**Why:** Centralized state management improves data flow predictability, simplifies debugging, and allows for easier sharing of data between components.
+
+**Example (Context API):**
+
+"""typescript
+// src/context/AuthContext.tsx
+import React, { createContext, useState, useContext, ReactNode } from 'react';
+
+interface AuthContextType {
+  user: User | null;
+  login: (userData: User) => void;
+  logout: () => void;
+}
+
+interface AuthProviderProps {
+  children: ReactNode;
+}
+
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(null);
+
+  const login = (userData: User) => {
+    setUser(userData);
+  };
+
+  const logout = () => {
+    setUser(null);
+  };
+
+  const value: AuthContextType = {
+    user,
+    login,
+    logout,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+
+export const useAuth = () => { // this is proper syntax for the latest react native
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
+
+
+// src/features/profile/screens/ProfileScreen.tsx
+
+import React from 'react';
+import { useAuth } from '../../context/AuthContext';
+
+const ProfileScreen = () => {
+  const { user, logout } = useAuth();
+
+  if (!user) {
+    return <Text>Please login.</Text>;
+  }
+
+  return (
+    <>
+      <Text>Welcome, {user.username}!</Text>
+      <Button title="Logout" onPress={logout} />
+    </>
+  );
+};
+
+export default ProfileScreen;
+"""
+
+**Example (Redux Toolkit):**
+
+"""typescript
+// src/store/slices/authSlice.ts
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+
+interface AuthState {
+  user: User | null;
+  isLoading: boolean;
+  error: string | null;
+}
+
+const initialState: AuthState = {
+  user: null,
+    isLoading: false,
+  error: null,
+};
+
+const authSlice = createSlice({
+  name: 'auth',
+  initialState,
+  reducers: {
+    loginStart(state) {
+        state.isLoading = true;
+    },
+    loginSuccess(state, action: PayloadAction<User>) {
+      state.user = action.payload;
+        state.isLoading = false;
+        state.error = null;
+    },
+    loginFailure(state, action: PayloadAction<string>) {
+      state.user = null;
+      state.isLoading = false;
+      state.error = action.payload;
+    },
+      logout(state) {
+          state.user = null;
+          state.isLoading = false;
+          state.error = null;
+      }
+  },
+});
+
+export const { loginStart, loginSuccess, loginFailure, logout } = authSlice.actions;
+export default authSlice.reducer;
+
+// src/store/store.ts
+import { configureStore } from '@reduxjs/toolkit';
+import authReducer from './slices/authSlice';
+
+const store = configureStore({
+  reducer: {
+    auth: authReducer,
+  },
+});
+
+export type RootState = ReturnType<typeof store.getState>;
+export type AppDispatch = typeof store.dispatch;
+export default store;
+
+// src/features/profile/screens/ProfileScreen.tsx
+import React from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { RootState, AppDispatch } from '../../store/store';
+import { logout } from '../../store/slices/authSlice';
+
+
+const ProfileScreen = () => {
+  const user = useSelector((state: RootState) => state.auth.user);
+  const dispatch = useDispatch<AppDispatch>();
+
+  const handleLogout = () => {
+    dispatch(logout());
+  };
+
+  if (!user) {
+    return <Text>Please login.</Text>;
+  }
+
+  return (
+    <>
+      <Text>Welcome, {user.username}!</Text>
+      <Button title="Logout" onPress={handleLogout} />
+    </>
+  );
+};
+
+export default ProfileScreen;
+"""
+
+### 2.2. Standard
+
+Implement the "Separation of Concerns" principle to keep the logic of components, styling, and data handling separate.
+
+*   **Do This:** Use functional components and React Hooks to separate UI rendering logic from state management and side effects.  Move styling to separate stylesheet files.
+*   **Don't Do This:**  Put business logic, API calls, or complex calculations directly within components' render methods. Avoid inline styling as much as possible.
+
+**Why:** Separation of concerns makes components easier to understand, test, and reuse.  It also improves code maintainability by allowing you to modify UI logic, styling or data handling without affecting other parts of the component.
+
+**Example:**
+
+"""typescript
+// src/features/home/components/WelcomeMessage.tsx
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+
+interface WelcomeMessageProps {
+  name: string;
+}
+
+const WelcomeMessage: React.FC<WelcomeMessageProps> = ({ name }) => {
+  return (
+    <View style={styles.container}>
+      <Text style={styles.text}>Welcome, {name}!</Text>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    padding: 16,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 8,
+  },
+  text: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+});
+
+export default WelcomeMessage;
+"""
+
+### 2.3. Standard
+
+Use the "Adapter Pattern" for communication with external libraries or APIs.
+
+*   **Do This:** Create adapter classes or functions that translate data between the format expected by your application and the format provided by the external system.
+*   **Don't Do This:** Directly use external libraries or APIs within your components without any abstraction.
+
+**Why:** The Adapter Pattern isolates your application from changes in external systems and allows you to easily switch between different implementations.  It also makes testing easier by allowing you to mock the adapter and simulate different scenarios.
+
+**Example:**
+
+"""typescript
+// src/services/apiAdapters/userAdapter.ts
+import { User } from '../../types';
+
+interface ApiUser {
+  id: number;
+  firstName: string;
+  lastName: string;
+  emailAddress: string;
+}
+
+const adaptApiUserToUser = (apiUser: ApiUser): User => {
+  return {
+    id: apiUser.id,
+    fullName: "${apiUser.firstName} ${apiUser.lastName}",
+    email: apiUser.emailAddress,
+  };
+};
+
+export default adaptApiUserToUser;
+
+// src/services/api.ts
+import axios from 'axios';
+import adaptApiUserToUser from './apiAdapters/userAdapter';
+
+const apiClient = axios.create({
+  baseURL: 'https://api.example.com',
+});
+
+const getUser = async (id: number): Promise<User> => {
+  const response = await apiClient.get("/users/${id}");
+  return adaptApiUserToUser(response.data);
+};
+
+export default { getUser };
+
+// src/features/profile/screens/ProfileScreen.tsx
+import React, { useState, useEffect } from 'react';
+import api from '../../services/api';
+
+const ProfileScreen = () => {
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const userData = await api.getUser(123); // Fetch user with ID 123
+      setUser(userData);
+    };
+
+    fetchUser();
+  }, []);
+
+  if (!user) {
+    return <Text>Loading...</Text>;
+  }
+
+  return (
+    <>
+      <Text>Full Name: {user.fullName}</Text>
+      <Text>Email: {user.email}</Text>
+    </>
+  );
+};
+
+export default ProfileScreen;
+
+"""
+
+## 3. Component Design
+
+### 3.1. Standard
+
+Build reusable and composable components.
+
+*   **Do This:** Design components that can be used in multiple parts of the application and easily customized through props.
+*   **Don't Do This:** Create highly specific components that are only used in one place or have complex internal logic that is difficult to modify.
+
+**Why:** Reusable components reduce code duplication, improve consistency, and simplify maintenance.
+
+**Example:**
+
+"""typescript
+// src/components/Button.tsx
+import React from 'react';
+import { TouchableOpacity, Text, StyleSheet } from 'react-native';
+
+interface ButtonProps {
+  title: string;
+  onPress: () => void;
+  color?: string; // Optional prop for button color
+}
+
+const Button: React.FC<ButtonProps> = ({ title, onPress, color = '#007BFF' }) => {
+  return (
+    <TouchableOpacity
+      style={[styles.button, { backgroundColor: color }]}
+      onPress={onPress}
+    >
+      <Text style={styles.text}>{title}</Text>
+    </TouchableOpacity>
+  );
+};
+
+const styles = StyleSheet.create({
+  button: {
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  text: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+});
+
+export default Button;
+
+// Usage in different screens:
+// src/features/authentication/screens/LoginScreen.tsx
+<Button title="Login" onPress={handleLogin} />
+
+
+// src/features/home/screens/HomeScreen.tsx
+<Button title="Go to Settings" onPress={navigateToSettings} color="#28A745" />
+"""
+
+### 3.2. Standard
+
+Use functional components with React Hooks for state management and side effects.
+
+*   **Do This:** Prefer functional components and hooks over class components, especially for new code.
+*   **Don't Do This:** Use class components unless you are working with legacy code or require specific lifecycle methods.
+
+**Why:** Functional components with hooks are more concise, easier to test, and promote code reuse through custom hooks.  They also align with the recommended approach in modern React development.
+
+**Example:**
+
+"""typescript
+// src/hooks/useCounter.ts
+import { useState } from 'react';
+
+const useCounter = (initialValue: number = 0) => {
+  const [count, setCount] = useState(initialValue);
+
+  const increment = () => {
+    setCount(count + 1);
+  };
+
+  const decrement = () => {
+    setCount(count - 1);
+  };
+
+  return { count, increment, decrement };
+};
+
+export default useCounter;
+
+// src/components/Counter.tsx
+import React from 'react';
+import useCounter from '../hooks/useCounter';
+
+const Counter = () => {
+  const { count, increment, decrement } = useCounter(10);
+
+  return (
+    <>
+      <Text>Count: {count}</Text>
+      <Button title="Increment" onPress={increment} />
+      <Button title="Decrement" onPress={decrement} />
+    </>
+  );
+};
+
+export default Counter;
+"""
+
+### 3.3. Standard
+
+Use PropTypes or TypeScript for type checking and validating component props.
+
+*   **Do This:** Define the expected types of component props using PropTypes or TypeScript interfaces/types.
+*   **Don't Do This:** Skip type checking altogether, as this can lead to runtime errors and unexpected behavior.
+
+**Why:** Type checking helps catch errors early in the development process, improves code reliability, and makes components easier to understand and use. TypeScript is increasingly preferred for React Native projects.
+
+**Example (TypeScript):**
+
+"""typescript
+// src/components/Greeting.tsx
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+
+interface GreetingProps {
+  name: string;
+  age?: number; // Optional prop
+}
+
+const Greeting: React.FC<GreetingProps> = ({ name, age }) => {
+  return (
+    <View style={styles.container}>
+      <Text style={styles.text}>Hello, {name}!</Text>
+      {age && <Text style={styles.text}>You are {age} years old.</Text>}
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    padding: 16,
+  },
+  text: {
+    fontSize: 16,
+  },
+});
+
+export default Greeting;
+"""
+
+## 4. Data Handling
+
+### 4.1. Standard
+
+Abstract API calls into dedicated service modules.
+
+*   **Do This:** Create service modules that encapsulate the logic for interacting with APIs, including data fetching, transformation, and error handling.
+*   **Don't Do This:** Directly make API calls within components, as this leads to tightly coupled code and makes it difficult to test and maintain.
+
+**Why:** Service modules promote code reuse, improve testability, and allow you to easily switch between different data sources or API implementations.
+
+**Example:**
+
+"""typescript
+// src/services/api.ts
+import axios from 'axios';
+
+const apiClient = axios.create({
+  baseURL: 'https://api.example.com',
+});
+
+const getUsers = async (): Promise<User[]> => {
+  const response = await apiClient.get('/users');
+  return response.data;
+};
+
+const createUser = async (userData: User): Promise<User> => {
+  const response = await apiClient.post('/users', userData);
+  return response.data;
+};
+
+export default { getUsers, createUser };
+
+// src/features/userList/screens/UserListScreen.tsx
+import React, { useState, useEffect } from 'react';
+import api from '../../services/api';
+
+const UserListScreen = () => {
+  const [users, setUsers] = useState<User[]>([]);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      const userList = await api.getUsers();
+      setUsers(userList);
+    };
+
+    fetchUsers();
+  }, []);
+
+   return (
+    // ... Render the list of users ...
+  );
+};
+
+export default UserListScreen;
+"""
+
+### 4.2. Standard
+
+Implement proper error handling for API calls and data processing.
+
+*   **Do This:** Use try-catch blocks to handle potential errors during API calls and data processing. Display user-friendly error messages to the user.
+*   **Don't Do This:** Ignore errors or display technical error messages to the user.
+
+**Why:** Proper error handling improves the user experience, prevents unexpected crashes, and makes the application more robust.
+
+**Example:**
+
+"""typescript
+// src/services/api.ts
+import axios from 'axios';
+
+const getUsers = async (): Promise<User[]> => {
+  try {
+    const response = await axios.get('/users');
+    return response.data;
+  } catch (error: any) {  // type assertion: tells Typescript that error is of type any
+    console.error('Error fetching users:', error.message);
+    throw new Error('Failed to fetch users'); // Re-throw the error for handling in the component
+  }
+};
+
+export default { getUsers };
+
+// src/features/userList/screens/UserListScreen.tsx
+import React, { useState, useEffect } from 'react';
+import api from '../../services/api';
+import { Alert } from 'react-native';
+
+const UserListScreen = () => {
+  const [users, setUsers] = useState<User[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const userList = await api.getUsers();
+        setUsers(userList);
+        setError(null); // Clear any previous error
+      } catch (err: any) {
+        setError(err.message || 'Failed to fetch users');  // type assertion: tells Typescript that err is of type any
+        Alert.alert('Error', 'Failed to load users. Please try again later.');  //Enhanced error message to the user
+      }
+    };
+
+    fetchUsers();
+  }, []);
+
+  if (error) {
+    return <Text>Error: {error}</Text>;
+  }
+
+   return (
+    // ... Render the list of users ...
+  );
+};
+
+export default UserListScreen;
+"""
+
+### 4.3. Standard
+
+Use data transformation techniques to adapt data to the specific needs of your application.
+
+*   **Do This:** Transform data received from APIs or other sources into a consistent and convenient format for use in your components.
+*   **Don't Do This:** Directly use raw data from external sources without any transformation.
+
+**Why:** Data transformation improves code clarity, reduces dependencies on external data formats, and allows you to easily adapt to changes in data sources. Refer to the "Adapter Pattern" (2.3) for examples of data transformation.
+
+## 5. Navigation
+
+### 5.1. Standard
+
+Use React Navigation for handling application navigation.
+
+*   **Do This:** Use React Navigation's pre-built navigators and components for creating different navigation patterns (e.g., stack, tab, drawer).
+*   **Don't Do This:** Implement custom navigation logic from scratch, as this is complex and error-prone.
+
+**Why:** React Navigation provides a powerful and flexible API for creating complex navigation flows in React Native applications.
+
+**Example:**
+
+"""typescript
+// src/navigation/AppNavigator.tsx
+import React from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { createStackNavigator } from '@react-navigation/stack';
+import HomeScreen from '../features/home/screens/HomeScreen';
+import ProfileScreen from '../features/profile/screens/ProfileScreen';
+
+const Stack = createStackNavigator();
+
+const AppNavigator = () => {
+  return (
+    <NavigationContainer>
+      <Stack.Navigator initialRouteName="Home">
+        <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="Profile" component={ProfileScreen} />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+};
+
+export default AppNavigator;
+
+// src/features/home/screens/HomeScreen.tsx
+import React from 'react';
+import { Button, View, Text } from 'react-native';
+
+const HomeScreen = ({ navigation }: { navigation: any }) => {
+  return (
+    <View>
+      <Text>Home Screen</Text>
+      <Button
+        title="Go to Profile"
+        onPress={() => navigation.navigate('Profile')}
+      />
+    </View>
+  );
+};
+
+export default HomeScreen;
+"""
+
+### 5.2. Standard
+
+Define navigation parameters using TypeScript interfaces for type safety.
+
+*   **Do This:** Create interfaces that specify the expected types of navigation parameters for each screen.
+*   **Don't Do This:** Pass navigation parameters as plain JavaScript objects without any type checking.
+
+**Why:** Type-safe navigation parameters help catch errors early in the development process and improve code reliability.
+
+**Example:**
+
+"""typescript
+// src/navigation/types.ts
+export type RootStackParamList = {
+  Home: undefined;
+  Profile: { userId: string };
+  Settings: undefined;
+};
+
+// src/screens/ProfileScreen.tsx
+import React from 'react';
+import { RouteProp, useRoute } from '@react-navigation/native';
+import { RootStackParamList } from '../navigation/types';
+
+type ProfileScreenRouteProp = RouteProp<RootStackParamList, 'Profile'>;
+
+const ProfileScreen = () => {
+  const route = useRoute<ProfileScreenRouteProp>();
+  const { userId } = route.params;
+
+  return (
+    <View>
+      <Text>Profile Screen</Text>
+      <Text>User ID: {userId}</Text>
+    </View>
+  );
+};
+
+export default ProfileScreen;
+
+// src/screens/HomeScreen.tsx
+import React from 'react';
+import { Button, View, Text } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { RootStackParamList } from '../navigation/types';
+import { StackNavigationProp } from '@react-navigation/stack'
+
+type HomeScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Home'>;
+
+
+const HomeScreen = () => {
+
+  const navigation = useNavigation<HomeScreenNavigationProp>();
+
+  return (
+    <View>
+      <Text>Home Screen</Text>
+      <Button
+        title="Go to Profile"
+        onPress={() => navigation.navigate('Profile', {userId: "42"})}
+      />
+    </View>
+  );
+};
+
+export default HomeScreen;
+
+
+"""
+
+### 5.3 Standard
+
+Implement deep linking for direct navigation to specific screens.
+
+* **Do This:** Configure your React Native app to handle deep links, allowing users to navigate to specific content or sections of the app directly from external sources (e.g., emails, websites).
+
+* **Don't Do This:** Overlook deep linking, especially if your app relies on sharing content or integrating with other platforms.
+
+**Why:** Deep linking enhances user engagement, improves app discoverability, and streamlines the user experience by allowing users to bypass the app's main navigation flow and access content directly.
+
+**Example:**
+
+In "App.js" or your root component:
+
+"""typescript
+import React, { useEffect } from 'react';
+import { Linking } from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
+import { createStackNavigator } from '@react-navigation/stack';
+import HomeScreen from './screens/HomeScreen';
+import ArticleScreen from './screens/ArticleScreen';
+
+const Stack = createStackNavigator();
+
+function App() {
+  useEffect(() => {
+    const handleDeepLink = async (event) => {
+      // Example: scheme://myapp/articles/123
+      const { path, queryParams } = Linking.parse(event.url);
+      if (path.startsWith('articles/')) {
+        const articleId = path.split('/')[1]; // Extract article id.
+
+        navigation.navigate('Article', { articleId });
+      }
+    };
+
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        handleDeepLink({ url });
+      }
+    });
+
+    Linking.addEventListener('url', handleDeepLink);
+
+    return () => {
+      Linking.removeEventListener('url', handleDeepLink);
+    };
+  }, []);
+
+  return (
+    <NavigationContainer>
+      <Stack.Navigator>
+        <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="Article" component={ArticleScreen} />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+}
+
+export default App;
+"""
+
+## 6. Platform-Specific Code
+
+### 6.1. Standard
+
+Use platform-specific extensions or the "Platform" API for handling platform-specific logic.
+
+*   **Do This:** Create separate files with ".ios.js" or ".android.js" extensions for platform-specific implementations or use the "Platform" API to conditionally execute code based on the platform.
+*   **Don't Do This:** Write complex inline conditional statements to handle platform differences.
+
+**Why:** Platform-specific code organization improves code clarity and maintainability and allows you to easily adapt the application to different platforms.
+
+**Example:**
+
+"""typescript
+// src/components/MyComponent.ios.tsx
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+
+const styles = StyleSheet.create({
+  container: {
+    backgroundColor: 'lightblue', // iOS-specific style
+  },
+  text: {
+    fontSize: 16,
+  },
+});
+
+const MyComponent = () => (
+  <View style={styles.container}>
+    <Text style={styles.text}>This is an iOS component.</Text>
+  </View>
+);
+
+export default MyComponent;
+
+// src/components/MyComponent.android.tsx
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+
+const styles = StyleSheet.create({
+  container: {
+    backgroundColor: 'lightgreen', // Android-specific style
+  },
+  text: {
+    fontSize: 16,
+  },
+});
+
+const MyComponent = () => (
+  <View style={styles.container}>
+    <Text style={styles.text}>This is an Android component.</Text>
+  </View>
+);
+
+export default MyComponent;
+
+// src/components/MyComponent.tsx - Generic Component that imports from each platform
+import React from 'react';
+import { Platform } from 'react-native';
+import MyComponentIOS from './MyComponent.ios';
+import MyComponentAndroid from './MyComponent.android';
+
+const MyComponent = Platform.select({
+  ios: () => <MyComponentIOS />,
+  android: () => <MyComponentAndroid />,
+  default: () => <Text>Unsupported platform</Text>,
+});
+
+export default MyComponent;
+"""
+
+### 6.2. Standard
+
+Use platform-specific styling for optimal UI rendering.
+
+*   **Do This:** Adjust styling based on the platform to ensure consistent and visually appealing UI across different devices.
+*   **Don't Do This:** Use a single set of styles for all platforms, as this can lead to UI inconsistencies.
+
+**Why:** Platform-specific styling improves the user experience and ensures that the application looks and feels native on each platform.
+Consider using "PlatformColor" to automatically adjust for system theme changes.
+
+## 7. Performance and Optimization
+
+### 7.1. Standard
+
+Optimize images for mobile devices.
+
+*   **Do This:** Compress images, use appropriate image formats (JPEG for photos, PNG for graphics), and resize images to the required dimensions.
+*   **Don't Do This:** Use large, unoptimized images, as this can significantly impact application performance and storage usage.
+
+**Why:** Optimized images reduce the application's size, improve loading times, and conserve bandwidth.
+
+### 7.2. Standard
+
+Use memoization techniques to prevent unnecessary re-renders.
+
+*   **Do This:** Wrap functional components with "React.memo" to prevent re-renders when props have not changed. Use "useMemo" and "useCallback" hooks to memoize expensive calculations and function references.
+*   **Don't Do This:** Skip memoization altogether, as this can lead to performance issues in complex applications.
+
+**Why:** Memoization optimizes rendering performance by preventing unnecessary re-renders of components and recalculations of values.
+
+**Example:**
+
+"""typescript
+import React, { useState, useCallback, useMemo } from 'react';
+
+interface ExpensiveComponentProps {
+  data: number[];
+}
+
+const ExpensiveComponent: React.FC<ExpensiveComponentProps> = React.memo(({ data }) => {
+  const processedData = useMemo(() => {
+    console.log('Processing data...');
+    // Simulate an expensive calculation
+    return data.map(item => item * 2);
+  }, [data]);
+
+  return (
+    <View>
+      <Text>Processed Data:</Text>
+      {processedData.map((item, index) => (
+        <Text key={index}>{item}</Text>
+      ))}
+    </View>
+  );
+});
+
+const MyComponent = () => {
+  const [count, setCount] = useState(0);
+  const [data, setData] = useState([1, 2, 3, 4, 5]);
+
+  const increment = useCallback(() => {
+    setCount(prevCount => prevCount + 1);
+  }, []);
+
+  const updateData = () => {
+    setData(prevData => [...prevData, prevData.length + 1]);
+  };
+
+  return (
+    <View>
+      <Text>Count: {count}</Text>
+      <Button title="Increment Count" onPress={increment} />
+      <Button title="Update Data" onPress={updateData} />
+      <ExpensiveComponent data={data} />
+    </View>
+  );
+};
+
+export default MyComponent;
+"""
+
+### 7.3. Standard
+
+Use FlatList or SectionList for rendering large lists of data.
+
+*   **Do This:** Use "FlatList" or "SectionList" components for rendering lists with a large number of items, as these components optimize rendering performance by only rendering items that are currently visible on the screen.
+*   **Don't Do This:** Use "ScrollView" to render large lists, as this can lead to performance issues due to rendering all items at once.
+
+**Why:** "FlatList" and "SectionList" optimize rendering performance by virtualizing the list, i.e., only rendering the items that are currently visible on the screen.
+
+## 8. Security
+
+### 8.1 Standard
+
+Secure API keys and sensitive information.
+
+*   **Do This:** Store API keys and other sensitive information securely using environment variables or secure storage mechanisms (e.g., React Native Keychain). Never include API keys directly in the code.
+
+*   **Don't Do This:** Commit API keys or other sensitive information to the source code repository.
+
+**Why:** Protecting API keys and sensitive information prevents unauthorized access to your application and its data.
+
+**Important Note**: Detailed steps on securely storing keys depend on third-party native modules designed for secure storage. General best practices involve never directly embedding keys in the code.
+
+### 8.2 Standard
+
+Implement proper input validation and sanitization.
+
+*   **Do This:** Validate and sanitize user inputs to prevent security vulnerabilities (e.g., SQL injection, cross-site scripting). Use appropriate encoding and escaping techniques when displaying user-generated content.
+
+*   **Don't Do This:** Trust user input without any validation or sanitization.
+
+**Why:** Input validation and sanitization protect your application from malicious attacks and prevent data corruption.
+
+### 8.3 Standard
+
+Secure communication with APIs
+
+*   **Do This:** Always use "HTTPS" rather than "HTTP" for API communications
+*   **Don't Do This:** Send sensitive data over unencrypted channels.
+
+**Why:** HTTPS encrypts data transmitted between the app and the server, preventing eavesdropping and man-in-the-middle attacks.
+
+### 8.4 Standard
+
+Implement certificate pinning
+
+*   **Do This

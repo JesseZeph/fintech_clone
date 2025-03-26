@@ -1,0 +1,897 @@
+---
+description: Code Style and Conventions Standards for React Native
+globs: .tsx
+alwaysApply: false
+---
+# Code Style and Conventions Standards for React Native
+
+This document outlines code style and conventions standards for React Native development. Adhering to these standards promotes code readability, maintainability, consistency, and collaboration within development teams. It emphasizes modern approaches and patterns based on the latest React Native features and best practices. These standards aim to provide specific, actionable guidance with the 'why' behind each convention.
+
+## 1. General Formatting
+
+### 1.1. Indentation and Whitespace
+
+*   **Do This:** Use 2 spaces for indentation. Avoid tabs.
+*   **Don't Do This:** Use tabs or more than 2 spaces for indentation.
+*   **Why:** Consistent indentation enhances code readability, making it easier to follow the code's structure.
+
+"""javascript
+// Do This
+function MyComponent() {
+  return (
+    <View>
+      <Text>Hello, World!</Text>
+    </View>
+  );
+}
+
+// Don't Do This
+function MyComponent() {
+	return (
+		<View>
+			<Text>Hello, World!</Text>
+		</View>
+	);
+}
+"""
+
+### 1.2. Line Length
+
+*   **Do This:** Limit lines to a maximum of 120 characters.
+*   **Don't Do This:** Exceed the line length limit.
+*   **Why:** Shorter lines improve readability, especially on smaller screens or when viewing code side-by-side.
+
+### 1.3. Trailing Commas
+
+*   **Do This:** Use trailing commas in multi-line object literals, arrays, and function parameters.
+*   **Don't Do This:** Omit trailing commas in multi-line structures.
+*   **Why:** Trailing commas simplify adding, removing, or reordering items and reduce Git diff noise.
+
+"""javascript
+// Do This
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+  }, // Trailing comma
+});
+
+// Don't Do This
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+    alignItems: 'center'
+  }
+});
+"""
+
+### 1.4. Whitespace Usage
+
+*   **Do This:** Use whitespace to separate logical blocks of code. Add a newline between functions and components. Use single spaces around operators.
+*   **Don't Do This:** Clutter code with excessive or inconsistent whitespace.
+
+"""javascript
+// Do This
+function add(a, b) {
+  return a + b;
+}
+
+function subtract(a, b) {
+  return a - b;
+}
+
+function MyComponent() {
+  const result = add(5, 3);
+
+  return (
+    <View>
+      <Text>{result}</Text>
+    </View>
+  );
+}
+
+// Don't Do This
+function add(a,b){return a+b;}function subtract(a,b){return a-b;}
+function MyComponent(){const result=add(5,3);return(<View><Text>{result}</Text></View>);}
+"""
+
+### 1.5. Consistent Quote Usage
+
+*   **Do This:** Use single quotes ("'") for JSX attributes and JavaScript strings.
+*   **Don't Do This:** Use double quotes (""") in JSX attributes or inconsistently mix single and double quotes.
+*   **Why:** Consistency improves readability, and single quotes are generally preferred in React/React Native.
+
+"""javascript
+// Do This
+<Text style={styles.text}>{'Hello, World!'}</Text>
+
+// Don't Do This
+<Text style={styles.text}>"Hello, World!"</Text>
+"""
+
+## 2. Naming Conventions
+
+### 2.1. Variables and Constants
+
+*   **Do This:** Use "camelCase" for variable and function names. Use "PascalCase" for component names. Use uppercase with underscores ("UPPER_CASE_WITH_UNDERSCORES") for constants.
+*   **Don't Do This:** Use inconsistent casing or vague, non-descriptive names.
+*   **Why:** Clear naming conventions improve code understanding and maintainability.
+
+"""javascript
+// Do This
+const initialValue = 0;
+function calculateTotal() { /* ... */ }
+
+function MyComponent() { /* ... */ }
+
+const API_URL = 'https://example.com/api';
+
+// Don't Do This
+const initVal = 0; // Vague name
+function calc() { /* ... */ } // Vague name
+
+function mycomponent() { /* ... */ } // Incorrect casing
+
+const apiUrl = 'https://example.com/api'; // Incorrect casing for constant
+"""
+
+### 2.2. Component File Naming
+
+*   **Do This:** Name component files using "PascalCase" with ".js" or ".jsx" extensions (e.g., "MyComponent.js").  Prefer ".jsx" for files containing JSX.
+*   **Don't Do This:** Use inconsistent naming schemes or non-descriptive file names.
+*   **Why:** Consistent file naming facilitates easier file searching and project organization.
+
+### 2.3. Style Sheet Naming
+
+*   **Do This:** Name style sheets using "PascalCase" matching the component name (e.g., "MyComponent.styles.js").
+*   **Don't Do This:** Use generic names like "styles.js" or "stylesheet.js", which can lead to confusion. Isolate styles in separate files for better organization.
+*   **Why:** Clear style sheet naming clarifies the relationship between components and their associated styles.
+
+"""javascript
+// MyComponent.js
+import React from 'react';
+import { View, Text } from 'react-native';
+import styles from './MyComponent.styles';
+
+function MyComponent() {
+  return (
+    <View style={styles.container}>
+      <Text style={styles.text}>Hello, World!</Text>
+    </View>
+  );
+}
+
+export default MyComponent;
+
+// MyComponent.styles.js
+import { StyleSheet } from 'react-native';
+
+export default StyleSheet.create({
+  container: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  text: {
+    fontSize: 20,
+  },
+});
+"""
+
+### 2.4. Prop Naming
+
+*   **Do This:** Use "camelCase" for props. Use descriptive names that clearly indicate the prop's purpose.
+*   **Don't Do This:** Use short, ambiguous names or inconsistent casing.
+*   **Why:** Meaningful prop names improve component API clarity.
+
+"""javascript
+// Do This
+function MyComponent({ itemName, isEnabled }) {
+  return (
+    <View>
+      <Text>{itemName}</Text>
+      {isEnabled ? <Text>Enabled</Text> : <Text>Disabled</Text>}
+    </View>
+  );
+}
+
+// Don't Do This
+function MyComponent({ name, enabled }) { // Less descriptive names
+  return (
+    <View>
+      <Text>{name}</Text>
+      {enabled ? <Text>Enabled</Text> : <Text>Disabled</Text>}
+    </View>
+  );
+}
+"""
+
+## 3. Component Structure and Best Practices
+
+### 3.1. Functional Components with Hooks
+
+*   **Do This:** Prefer functional components with Hooks over class components.
+*   **Don't Do This:** Rely solely on class components, especially for new development.
+*   **Why:** Functional components with Hooks offer a more concise and readable way to manage state and side effects.
+
+"""javascript
+// Do This (Functional component with Hooks)
+import React, { useState } from 'react';
+import { View, Text, Button } from 'react-native';
+
+function Counter() {
+  const [count, setCount] = useState(0);
+
+  return (
+    <View>
+      <Text>Count: {count}</Text>
+      <Button title="Increment" onPress={() => setCount(count + 1)} />
+    </View>
+  );
+}
+
+export default Counter;
+
+// Don't Do This (Class component - less preferred)
+import React, { Component } from 'react';
+import { View, Text, Button } from 'react-native';
+
+class Counter extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { count: 0 };
+  }
+
+  increment = () => {
+    this.setState({ count: this.state.count + 1 });
+  };
+
+  render() {
+    return (
+      <View>
+        <Text>Count: {this.state.count}</Text>
+        <Button title="Increment" onPress={this.increment} />
+      </View>
+    );
+  }
+}
+
+export default Counter;
+"""
+
+### 3.2. Component Composition
+
+*   **Do This:** Favor component composition over inheritance. Create small, reusable components.
+*   **Don't Do This:** Build large, monolithic components or rely on deep inheritance hierarchies.
+*   **Why:** Component composition promotes code reuse, testability, and maintainability.
+
+### 3.3. Prop Types
+
+*   **Do This:** Use TypeScript for prop type validation and static typing.
+*   **Don't Do This:**  Avoid defining prop types, or depend heavily on "PropTypes" runtime checking (use TypeScript instead).
+*   **Why:** TypeScript provides compile-time type checking, leading to fewer runtime errors and better code maintainability, especially in large projects.
+
+"""typescript
+// Do This (TypeScript)
+import React from 'react';
+import { View, Text } from 'react-native';
+
+interface Props {
+  name: string;
+  age?: number; // Optional prop
+}
+
+const MyComponent: React.FC<Props> = ({ name, age }) => {
+  return (
+    <View>
+      <Text>Name: {name}</Text>
+      {age && <Text>Age: {age}</Text>}
+    </View>
+  );
+};
+
+export default MyComponent;
+"""
+
+### 3.4. Stateless Components
+
+*   **Do This:** Use stateless (pure) functional components whenever possible.
+*   **Don't Do This:** Introduce state unnecessarily.
+*   **Why:** Stateless components are simpler, easier to test, and improve performance. It avoids unnecessary re-renders if props haven’t changed.
+
+### 3.5. Controlled vs. Uncontrolled Components
+*   **Do This:** USe controlled components when you need to strictly control the input values. Use uncontrolled components if you just need to access the value when the form is submitted.
+
+"""jsx
+// Controlled Component
+import React, { useState } from 'react';
+import { View, TextInput } from 'react-native';
+
+function ControlledInput() {
+  const [text, setText] = useState('');
+
+  return (
+    <View>
+      <TextInput
+        value={text}
+        onChangeText={setText}
+        placeholder="Enter text"
+      />
+    </View>
+  );
+}
+
+export default ControlledInput;
+
+// Uncontrolled Component
+import React, { useRef } from 'react';
+import { View, TextInput, Button } from 'react-native';
+
+function UncontrolledInput() {
+  const inputRef = useRef(null);
+
+  const handleSubmit = () => {
+    console.log('Input value:', inputRef.current.value); // Or .current.props.value depending on RN version
+  };
+
+  return (
+    <View>
+      <TextInput
+        ref={inputRef}
+        defaultValue=""
+        placeholder="Enter text"
+      />
+      <Button title="Submit" onPress={handleSubmit} />
+    </View>
+  );
+}
+
+export default UncontrolledInput;
+"""
+
+## 4. Styling
+
+### 4.1. StyleSheet API
+
+*   **Do This:** Use the "StyleSheet" API for defining styles.
+*   **Don't Do This:** Use inline styles excessively.
+*   **Why:** "StyleSheet" optimizes style creation and usage, enhancing performance. It also allows for better style management.
+
+"""javascript
+// Do This
+import { StyleSheet } from 'react-native';
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  text: {
+    fontSize: 20,
+  },
+});
+
+// Don't Do This (Excessive inline styles)
+<View style={{ flex: 1, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' }}>
+  <Text style={{ fontSize: 20 }}>Hello, World!</Text>
+</View>
+"""
+
+### 4.2. Style Organization
+
+*   **Do This:** Keep styles close to the component using them (e.g., "MyComponent.styles.js"). Employ separate files for global styles.
+*   **Don't Do This:** Dump all styles into a single, massive stylesheet file. Adopt folder-based structure.
+*   **Why:** Organized styles improve maintainability and reduce naming conflicts.
+
+### 4.3. Platform-Specific Styles
+
+*   **Do This:** Use "Platform.OS" to apply platform-specific styles. Employ the ".ios." and ".android." extensions for platform-specific files.
+*   **Don't Do This:** Hardcode platform-specific values directly within components.
+*   **Why:**  Platform-specific styles ensure a consistent look and feel across different devices.
+
+"""javascript
+// Do This
+import { StyleSheet, Platform } from 'react-native';
+
+const styles = StyleSheet.create({
+  container: {
+    paddingTop: Platform.OS === 'ios' ? 20 : 0,
+  },
+  text: {
+    fontSize: Platform.OS === 'ios' ? 16 : 14,
+  },
+});
+
+// MyComponent.ios.js
+import React from 'react';
+import { View, Text } from 'react-native';
+import styles from './MyComponent.styles';
+
+function MyComponent() {
+  return (
+    <View style={styles.container}>
+      <Text style={styles.text}>iOS Component</Text>
+    </View>
+  );
+}
+
+export default MyComponent;
+
+// MyComponent.android.js
+import React from 'react';
+import { View, Text } from 'react-native';
+import styles from './MyComponent.styles';
+
+function MyComponent() {
+  return (
+    <View style={styles.container}>
+      <Text style={styles.text}>Android Component</Text>
+    </View>
+  );
+}
+
+export default MyComponent;
+"""
+
+### 4.4. Themeing
+*   **Do This:** Use a Context API or a dedicated library like React Navigation's theming support to implement themes.
+*   **Don't Do This:** Hardcode colours and other styles across your application.
+*   **Why:** Themeing allows for easily customisable styles across your entire application.
+
+"""javascript
+// ThemeContext.js
+import React, { createContext, useState, useContext } from 'react';
+
+const ThemeContext = createContext();
+
+export const ThemeProvider = ({ children }) => {
+  const [theme, setTheme] = useState('light'); // Default theme
+
+  const toggleTheme = () => {
+    setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
+  };
+
+  return (
+    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  );
+};
+
+export const useTheme = () => useContext(ThemeContext);
+
+// Styles.js
+import { StyleSheet } from 'react-native';
+
+export const lightTheme = StyleSheet.create({
+  container: {
+    backgroundColor: '#FFFFFF',
+    color: '#000000',
+  },
+  text: {
+    color: '#000000',
+  },
+});
+
+export const darkTheme = StyleSheet.create({
+  container: {
+    backgroundColor: '#000000',
+    color: '#FFFFFF',
+  },
+  text: {
+    color: '#FFFFFF',
+  },
+});
+
+// Component
+import React from 'react';
+import { View, Text, Button } from 'react-native';
+import { useTheme } from './ThemeContext';
+import { lightTheme, darkTheme } from './styles';
+
+function ThemedComponent() {
+  const { theme, toggleTheme } = useTheme();
+  const styles = theme === 'light' ? lightTheme : darkTheme;
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.text}>Themed Text</Text>
+      <Button title="Toggle Theme" onPress={toggleTheme} />
+    </View>
+  );
+}
+
+export default ThemedComponent;
+
+// App.js usage
+import React from 'react';
+import { ThemeProvider } from './ThemeContext';
+import ThemedComponent from './ThemedComponent';
+
+function App() {
+  return (
+    <ThemeProvider>
+      <ThemedComponent />
+    </ThemeProvider>
+  );
+}
+
+export default App;
+"""
+
+## 5. State Management
+
+### 5.1. Local State
+
+*   **Do This:** Use "useState" for simple, component-specific state.
+*   **Don't Do This:** Overuse global state management for local concerns.
+*   **Why:** Reduces complexity and improves component isolation.
+
+### 5.2. Global State
+
+*   **Do This:** Consider using Context API with "useReducer" or dedicated libraries like Redux, Zustand, or Jotai for managing complex app-wide state.
+*   **Don't Do This:** Mutate state directly.
+*   **Why:** It centralizes state logic, improves data flow predictability, and facilitates state sharing across the application.
+
+"""javascript
+// Do This (Context API with useReducer)
+import React, { createContext, useReducer, useContext } from 'react';
+
+const initialState = { count: 0 };
+
+const reducer = (state, action) => {
+  switch (action.type) {
+    case 'INCREMENT':
+      return { count: state.count + 1 };
+    case 'DECREMENT':
+      return { count: state.count - 1 };
+    default:
+      return state;
+  }
+};
+
+const CounterContext = createContext();
+
+export const CounterProvider = ({ children }) => {
+  const [state, dispatch] = useReducer(reducer, initialState);
+
+  return (
+    <CounterContext.Provider value={{ state, dispatch }}>
+      {children}
+    </CounterContext.Provider>
+  );
+};
+
+export const useCounter = () => useContext(CounterContext);
+
+// Component
+import React from 'react';
+import { View, Text, Button } from 'react-native';
+import { useCounter } from './CounterContext';
+
+function CounterComponent() {
+  const { state, dispatch } = useCounter();
+
+  return (
+    <View>
+      <Text>Count: {state.count}</Text>
+      <Button title="Increment" onPress={() => dispatch({ type: 'INCREMENT' })} />
+      <Button title="Decrement" onPress={() => dispatch({ type: 'DECREMENT' })} />
+    </View>
+  );
+}
+
+export default CounterComponent;
+
+// App.js usage
+import React from 'react';
+import { CounterProvider } from './CounterContext';
+import CounterComponent from './CounterComponent';
+
+function App() {
+  return (
+    <CounterProvider>
+      <CounterComponent />
+    </CounterProvider>
+  );
+}
+
+export default App;
+"""
+
+### 5.3. Immutable Data Structures
+*   **Do This:** Use immutable data structures to avoid accidental mutations.
+*   **Don't Do This:** Directly modify state objects.
+*   **Why:**Immutability prevents unexpected side effects and makes debugging easier.
+
+"""javascript
+// Do This
+const updateObject = (oldObject, newValues) => {
+  return Object.assign({}, oldObject, newValues);
+};
+
+// Don't Do This
+state.myProperty = newValue; // Avoid direct mutations
+"""
+
+## 6. Asynchronous Operations
+
+### 6.1. Async/Await
+
+*   **Do This:** Use "async/await" for asynchronous operations (e.g., API calls).
+*   **Don't Do This:** Rely heavily on ".then()" chains.
+*   **Why:** "async/await" provides a more readable and manageable way to handle asynchronous code.
+
+"""javascript
+// Do This
+async function fetchData() {
+  try {
+    const response = await fetch('https://example.com/api');
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error fetching data:', error);
+    return null;
+  }
+}
+
+// Don't Do This (Callback chains)
+function fetchData() {
+  fetch('https://example.com/api')
+    .then(response => response.json())
+    .then(data => {
+      console.log(data);
+    })
+    .catch(error => {
+      console.error('Error fetching data:', error);
+    });
+}
+"""
+
+### 6.2. Error Handling
+
+*   **Do This:** Implement proper error handling using "try/catch" blocks. Display user-friendly error messages.
+*   **Don't Do This:** Ignore potential errors during asynchronous operations.
+*   **Why:** Robust error handling prevents application crashes and improves the user experience.
+
+## 7. Navigation
+
+### 7.1. React Navigation
+
+*   **Do This:** Use "react-navigation" for handling app navigation. Use version 6.x or later.
+*   **Don't Do This:** Implement custom navigation solutions unless absolutely necessary.
+*   **Why:** "react-navigation" is a well-maintained and feature-rich navigation library.
+
+### 7.2. Navigation Patterns
+
+*   **Do This:** Use appropriate navigation patterns (e.g., stack, tab, drawer) based on the application's structure.
+*   **Don't Do This:** Inconsistently mix navigation patterns, which can confuse users.
+
+"""javascript
+// Do This (React Navigation example)
+import React from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { createStackNavigator } from '@react-navigation/stack';
+import HomeScreen from './HomeScreen';
+import DetailsScreen from './DetailsScreen';
+
+const Stack = createStackNavigator();
+
+function App() {
+  return (
+    <NavigationContainer>
+      <Stack.Navigator initialRouteName="Home">
+        <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="Details" component={DetailsScreen} />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+}
+
+export default App;
+"""
+
+## 8. Accessibility
+
+### 8.1. Accessibility Properties
+
+*   **Do This:** Use accessibility properties (e.g., "accessible", "accessibilityLabel", "accessibilityHint") to make the app accessible to users with disabilities.
+*   **Don't Do This:** Ignore accessibility considerations.
+
+"""javascript
+// Do This
+<Button
+  title="Submit"
+  accessible={true}
+  accessibilityLabel="Submit the form"
+  accessibilityHint="Submits the data entered in the form"
+  onPress={handleSubmit}
+/>
+"""
+
+### 8.2. Semantic HTML
+
+*   **Do This:** Use semantic HTML-like components where appropriate (e.g., "Heading", "Paragraph") to provide structure and meaning to content.
+
+## 9. Performance
+
+### 9.1. Optimize Renderings
+
+*   **Do This:** Use "React.memo" for functional components and "PureComponent" for class components to prevent unnecessary re-renders.  Use the "useCallback" and  "useMemo" hooks where applicable.
+*   **Don't Do This:**  Rely on default shouldComponentUpdate/React.memo comparisons, especially when dealing with complex data structures.
+*   **Why:** Optimizing renderings improves app performance and reduces resource consumption.
+
+"""javascript
+// Do This
+
+import React from 'react';
+import { View, Text } from 'react-native';
+
+const MyComponent = React.memo(({ data }) => {
+  console.log('Rendering MyComponent');
+  return (
+    <View>
+      <Text>{data.name}</Text>
+    </View>
+  );
+}, (prevProps, nextProps) => {
+  return prevProps.data.id === nextProps.data.id; // Custom comparison function
+});
+
+export default MyComponent;
+
+import React, {useCallback} from 'react';
+import { Button } from 'react-native';
+
+function ParentComponent({onPress}) {
+  const handleClick = useCallback(() => {
+    onPress();
+  }, [onPress]);
+
+  return (
+    <Button title="Click me" onPress={handleClick} />
+  );
+}
+
+export default ParentComponent;
+"""
+
+### 9.2. Image Optimization
+
+*   **Do This:** Optimize images for mobile devices. Use appropriate image formats (e.g., WebP). Lazy-load images where possible.
+*   **Don't Do This:** Use large, unoptimized images that slow down the app.
+
+### 9.3. List Performance
+
+*   **Do This:** Use "FlatList" or "SectionList" for rendering large lists. Implement "keyExtractor" and "getItemLayout" for improved performance.
+*   **Don't Do This:** Use "ScrollView" for rendering long lists, as it can lead to performance issues.
+
+"""javascript
+// Do This
+import React from 'react';
+import { FlatList, Text, View } from 'react-native';
+
+const data = Array.from({ length: 100 }, (_, i) => ({ id: i.toString(), name: "Item ${i}" }));
+
+function MyList() {
+  const renderItem = ({ item }) => (
+    <View>
+      <Text>{item.name}</Text>
+    </View>
+  );
+
+  const keyExtractor = (item) => item.id;
+
+    return (
+        <FlatList
+            data={data}
+            renderItem={renderItem}
+            keyExtractor={keyExtractor}
+        />
+    );
+}
+"""
+
+### 9.4 Networking Optimizations
+*   **Do This:** Use "useMemo" to memoize data that is expensive to compute.
+*   **Don't Do This:** Create inline functions which will be re-created on every render.
+*   **Why:** Creating inline functions will cause unnecessary re-renders.
+
+## 10. Security
+
+### 10.1. Data Validation
+
+*   **Do This:** Validate user input on both the client and server sides. Use secure storage for sensitive data (e.g., "react-native-keychain").
+*   **Don't Do This:** Trust user input without validation. Store sensitive data in plain text.
+*   **Why:** Proper data validation prevents injection attacks and data corruption.
+
+### 10.2. Secure API Communication
+
+*   **Do This:** Use HTTPS for all API communication. Implement authentication and authorization mechanisms.
+*   **Don't Do This:** Use insecure HTTP connections for sensitive data.
+
+### 10.3. Dependency Management
+
+*   **Do This:** Regularly update dependencies to patch security vulnerabilities.  Audit dependecies with "yarn audit" or "npm audit".
+*   **Don't Do This:** Use outdated dependencies with known security flaws.
+
+## 11. Testing
+
+### 11.1. Unit Tests
+
+*   **Do This:** Write unit tests for individual components and functions using Jest and React Native Testing Library.
+*   **Don't Do This:**  Neglect unit testing, leading to undetected bugs.
+
+### 11.2. Integration Tests
+
+*   **Do This:** Implement integration tests to verify interactions between different parts of the application.
+*   **Don't Do This:** Skip integration testing, as it's crucial for validating app workflows.
+
+### 11.3. End-to-End Tests
+
+*   **Do This:** Use end-to-end testing frameworks (e.g., Detox, Appium) to test the complete user experience.
+*   **Don't Do This:**  Avoid end-to-end testing, which can lead to issues in production.
+
+## 12. Documentation
+
+### 12.1. Code Comments
+
+*   **Do This:** Write clear and concise comments to explain complex logic or non-obvious code sections. Use JSDoc for documenting functions and components.
+*   **Don't Do This:** Over-comment or write redundant comments that state the obvious.
+
+"""javascript
+/**
+ * Calculates the total price of items in the cart.
+ * @param {Array<Object>} cartItems - An array of cart items.
+ * @returns {number} The total price.
+ */
+function calculateTotalPrice(cartItems) {
+  // Implementation...
+}
+"""
+
+### 12.2. README Files
+
+*   **Do This:** Provide comprehensive README files for projects and modules, including setup instructions, usage examples, and API documentation.
+*   **Don't Do This:** Neglect documentation, making it difficult for others to understand and use the code.
+
+## 13. Tooling
+
+### 13.1. ESLint
+
+*   **Do This:** Use ESLint with a consistent configuration (e.g., Airbnb, Standard) to enforce code style and detect potential issues.
+*   **Don't Do This:** Ignore ESLint warnings and errors.
+
+### 13.2. Prettier
+
+*   **Do This:** Use Prettier to automatically format code and maintain consistency. Integrate Prettier with ESLint.
+*   **Don't Do This:** Manually format code, leading to inconsistencies.
+
+### 13.3. TypeScript
+
+*   **Do This:** Use TypeScript (as implemented in section 3.3) for static typing.
+*   **Don't Do This:** Use JavaScript without type checking, which makes it harder to catch bugs early.
+
+## 14. Git Workflow
+
+### 14.1. Branching Strategy
+
+*   **Do This:** Use a clear branching strategy (e.g., Gitflow, GitHub Flow) to manage code changes and releases.
+*   **Don't Do This:** Commit directly to the "main"/"master" branch or use inconsistent branching practices.
+
+### 14.2. Commit Messages
+
+*   **Do This:** Write descriptive commit messages that explain the purpose of each change. Follow conventional commits.
+*   **Don't Do This:** Write vague or meaningless commit messages.
+*   **Why:** Clear commit messages aid in code review, debugging,  and team collaboration.
+
+### 14.3. Code Reviews
+
+*   **Do This:** Conduct thorough code reviews before merging branches. Use pull requests for code review.
+*   **Don't Do This:** Skip code reviews, as they're essential for maintaining code quality.
+
+By adhering to these code style and conventions standards, React Native development teams can ensure code quality, improve collaboration, and build maintainable, performant, and secure applications. This document should be considered a living guide to be updated and refined as new technologies and best practices emerge.

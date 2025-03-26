@@ -1,0 +1,593 @@
+---
+description: Performance Optimization Standards for React Native
+globs: .tsx
+alwaysApply: false
+---
+# Performance Optimization Standards for React Native
+
+This document outlines the performance optimization standards for React Native applications. Following these guidelines will help you create fast, responsive, and resource-efficient apps. These standards are designed to leverage the features of the latest React Native versions.
+
+## 1. Architecture and Component Design
+
+### 1.1. Component Granularity
+
+*   **Do This:** Break down complex screens into smaller, reusable, and independent components.
+*   **Don't Do This:** Create monolithic components that handle too much logic and rendering.
+
+**Why:** Smaller components are easier to optimize, test, and maintain. They also enable more efficient re-rendering.
+
+**Example:**
+
+"""jsx
+// Good: Separate components for different parts of a screen
+const Header = () => {
+  return <Text>My App</Text>;
+};
+
+const ProductList = ({ products }) => {
+  return (
+    <FlatList
+      data={products}
+      renderItem={({ item }) => <ProductItem product={item} />}
+      keyExtractor={item => item.id}
+    />
+  );
+};
+
+const ProductItem = ({ product }) => {
+    return <Text>{product.name}</Text>
+}
+
+const MainScreen = ({ products }) => {
+  return (
+    <View>
+      <Header />
+      <ProductList products={products} />
+    </View>
+  );
+};
+
+// Bad: One giant component
+const MainScreenUnoptimized = ({ products }) => {
+  return (
+    <View>
+      <Text>My App</Text>
+      <FlatList
+        data={products}
+        renderItem={({ item }) => <Text>{item.name}</Text>}
+        keyExtractor={item => item.id}
+      />
+    </View>
+  );
+};
+"""
+
+### 1.2. Pure Components and "React.memo"
+
+*   **Do This:** Use "React.PureComponent" or "React.memo" for components that render the same output given the same props and context.
+*   **Don't Do This:** Rely on default "React.Component" for all components, leading to unnecessary re-renders.
+
+**Why:**  "PureComponent" performs a shallow prop and state comparison before rendering.  "React.memo" provides similar functionality for functional components. This avoids wasteful re-renders.
+
+**Example:**
+
+"""jsx
+import React from 'react';
+
+// Using React.memo for a functional component
+const MyComponent = React.memo(({ data }) => {
+  console.log('MyComponent rendered');
+  return <Text>{data.value}</Text>;
+});
+
+// Alternatively, use React.PureComponent for class components
+class MyPureComponent extends React.PureComponent {
+  render() {
+    console.log('MyPureComponent rendered');
+    return <Text>{this.props.data.value}</Text>;
+  }
+}
+
+// Usage Example, assuming data prop rarely changes:
+const App = () => {
+  const [count, setCount] = React.useState(0);
+  const data = React.useMemo(() => ({ value: "Data ${count}" }), [count < 5]); // memoize data for first few counts
+
+  return (
+    <View>
+      <MyComponent data={data} />
+      <MyPureComponent data={data} />
+      <Button title="Increment" onPress={() => setCount(c => c + 1)} />
+    </View>
+  );
+};
+"""
+
+### 1.3. Immutability
+
+*   **Do This:** Treat state as immutable. Use methods like "...spread" or "Object.assign()" to create new objects/arrays when updating state.
+*   **Don't Do This:** Directly modify state objects.
+
+**Why:** Immutable data structures allow React to easily detect changes and trigger re-renders efficiently because it can do a simple reference equality check.
+
+**Example:**
+
+"""jsx
+// Good
+const updateStateImmutably = () => {
+  setState(prevState => ({
+    ...prevState,
+    value: 'new value',
+  }));
+};
+
+// Also good (using Object.assign):
+const updateStateImmutablyAlternative = () => {
+  setState(prevState => Object.assign({}, prevState, { value: 'new value' }));
+};
+
+// Bad
+const updateStateMutably = () => {
+  state.value = 'new value'; // DON'T DO THIS!
+  setState(state);  // This will not reliably trigger a re-render.
+};
+"""
+
+### 1.4 Virtualized Lists (FlatList, SectionList)
+
+*   **Do This:** Use "FlatList" or "SectionList" for rendering large lists of data.  Provide "keyExtractor", "getItemLayout" (when applicable), and "initialNumToRender" to optimize performance.
+*   **Don't Do This:** Use "ScrollView" with a "map" operation, especially for long lists.
+
+**Why:** "FlatList" and "SectionList" render only the visible items, improving initial render time and memory usage.
+
+**Example:**
+
+"""jsx
+import React from 'react';
+import { FlatList, Text, View, StyleSheet } from 'react-native';
+
+const data = Array.from({ length: 1000 }, (_, i) => ({ id: i.toString(), text: "Item ${i}" }));
+
+const renderItem = ({ item }) => (
+  <View style={styles.item}>
+    <Text>{item.text}</Text>
+  </View>
+);
+
+const App = () => {
+  return (
+    <FlatList
+      data={data}
+      renderItem={renderItem}
+      keyExtractor={item => item.id}
+      initialNumToRender={10} // Render this many items initially
+      getItemLayout={(data, index) => ({length: 50, offset: 50 * index, index})} // if item height is fixed.  crucial for long lists!
+      removeClippedSubviews={true} // Optimization flag for large lists
+    />
+  );
+};
+
+const styles = StyleSheet.create({
+  item: {
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+});
+"""
+
+### 1.5 Lazy Loading
+
+*   **Do This:** Load data or resources (e.g., images) only when they are needed.
+*   **Don't Do This:**  Load all data at once, especially on app startup.
+
+**Why:**  Reduces initial load time and memory consumption.
+
+**Example (using "react-native-fast-image" for image optimization and lazy loading):**
+
+"""jsx
+import FastImage from 'react-native-fast-image';
+
+const LazyImage = ({ source }) => {
+  const [loaded, setLoaded] = React.useState(false);
+
+  return (
+    <FastImage
+      style={{ width: 200, height: 200 }}
+      source={source}
+      resizeMode={FastImage.resizeMode.contain}
+      onLoad={() => setLoaded(true)}
+      //Show placeholder until the image is loaded completely
+      {...(loaded ? {} : {fallback: true})}
+    />
+  );
+};
+
+// Usage:
+<LazyImage source={{ uri: 'https://example.com/image.jpg' }} />
+"""
+
+### 1.6 Debouncing and Throttling
+
+*   **Do This:** Use debouncing (e.g., for search input) and throttling (e.g., for scroll events) to limit the frequency of function calls.
+*   **Don't Do This:** Execute computationally expensive functions directly on every event.
+
+**Why:** Prevents excessive computations and UI updates, improving responsiveness.
+
+**Example (using "lodash" for debouncing):**
+
+"""jsx
+import React, { useState, useCallback } from 'react';
+import { TextInput } from 'react-native';
+import { debounce } from 'lodash';
+
+const SearchInput = () => {
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const handleSearch = (text) => {
+    console.log('Searching for:', text);
+    // Perform your search logic here
+    setSearchTerm(text); // Keep state up to date
+
+  };
+
+  const debouncedSearch = useCallback(
+    debounce(handleSearch, 300), // Wait 300ms before executing handleSearch
+    []
+  );
+
+  const onChangeText = (text) => {
+    debouncedSearch(text);
+  };
+
+  return (
+    <TextInput
+      placeholder="Search..."
+      onChangeText={onChangeText}
+    />
+  );
+};
+"""
+
+## 2. JavaScript and Bridge Performance
+
+### 2.1. Minimize Bridge Crossings
+
+*   **Do This:** Batch multiple related operations into a single bridge call when possible. Use "useNativeDriver: true" for animations.
+*   **Don't Do This:** Make excessive small calls over the bridge as it is an expensive operation
+
+**Why:** Reduces overhead and improves performance.  The React Native bridge is the conduit for communication between JavaScript and native code.
+
+**Example (using "Animated" with "useNativeDriver"):**
+
+"""jsx
+import React, { useRef, useEffect } from 'react';
+import { View, Animated, Button } from 'react-native';
+
+const AnimatedView = () => {
+  const fadeAnim = useRef(new Animated.Value(0)).current;  // Initial value for opacity: 0
+
+  const fadeIn = () => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 5000,
+      useNativeDriver: true, // Enable native driver for smoother animations
+    }).start();
+  };
+
+  return (
+    <View>
+      <Animated.View
+        style={{
+          ...props.style,
+          opacity: fadeAnim,
+        }}
+      >
+       <Text>Fading View</Text>
+      </Animated.View>
+      <Button title="Fade In" onPress={fadeIn} />
+    </View>
+  );
+};
+"""
+
+### 2.2. Optimize JavaScript Code
+
+*   **Do This:** Use efficient algorithms and data structures. Avoid unnecessary computations in render functions.
+*   **Don't Do This:** Perform complex calculations or data transformations directly within the "render" function.
+
+**Why:** JavaScript performance directly affects UI responsiveness.
+
+**Example:**
+
+"""jsx
+import React from 'react';
+
+const EfficientComponent = ({ data }) => {
+  // Memoize the result to avoid recomputation on every render if data doesn't change
+  const processedData = React.useMemo(() => {
+    console.log("Processing data");
+    return data.map(item => item * 2); //Example Computation
+  }, [data]);
+
+  return (
+    <View>
+      {processedData.map(item => <Text key={item}>{item}</Text>)}
+    </View>
+  );
+};
+"""
+
+### 2.3. Avoid Console.log in Production
+
+*   **Do This:** Remove or disable "console.log" statements in production builds.
+*   **Don't Do This:** Leave "console.log" statements in production code.
+
+**Why:** "console.log" can significantly impact performance, especially on older devices.
+
+### 2.4 Reduce Bundle Size
+
+*   **Do This:** Use code splitting, tree shaking, and minification to reduce the bundle size and improve initial load time
+*   **Don't Do This:** Include unused code or large libraries in your bundle without optimization
+
+**Why:** Smaller bundle sizes lead to faster download and startup times
+
+**Example (using dynamic imports for code splitting):**
+
+"""jsx
+import React, { useState, useEffect } from 'react';
+import { Button, View, Text } from 'react-native';
+
+const App = () => {
+  const [module, setModule] = useState(null);
+
+  useEffect(() => {
+    // Dynamically import a module when needed
+    const loadModule = async () => {
+      const loadedModule = await import('./MyHeavyComponent');
+      setModule(() => loadedModule.default);
+    };
+    loadModule();
+  }, []);
+
+  return (
+    <View>
+      {module ? <Module /> : <Text>Loading...</Text>}
+
+    </View>
+  );
+};
+"""
+
+### 2.5 Hermes Engine
+*   **Do This:**  Use the Hermes JavaScript engine, especially for Android builds.
+*   **Don't Do This:** Stick to the default JavaScriptCore engine without considering Hermes.
+
+**Why:** Hermes is optimized for React Native and provides faster app startup times, reduced memory usage, and smaller app sizes.
+
+**How:**  Enable Hermes in your "android/app/build.gradle" file:
+
+"""gradle
+project.ext.react = [
+    entryFile: "index.js"
+]
+
+def enableHermes = project.ext.react.get("enableHermes", true);
+
+if (enableHermes) {
+    def hermesPath = "../../node_modules/hermes-engine/android/";
+    debugImplementation files(hermesPath + "hermes-debug.aar")
+    releaseImplementation files(hermesPath + "hermes-release.aar")
+} else {
+    debugImplementation jscFlavor == null ? 'org.webkit:android-jsc:+' : jscFlavor
+    releaseImplementation jscFlavor == null ? 'org.webkit:android-jsc:+' : jscFlavor
+}
+"""
+
+## 3. Image Optimization
+
+### 3.1. Image Format and Size
+
+*   **Do This:** Use optimized image formats like WebP (if supported) or JPEG. Resize images to the required display size.
+*   **Don't Do This:** Use large, unoptimized PNG files.
+
+**Why:** Reduces app size and memory usage.
+
+### 3.2. Caching
+
+*   **Do This:** Cache images to avoid repeated downloads. Use libraries like "react-native-fast-image" or implement custom caching mechanisms.
+*   **Don't Do This:** Download the same image multiple times.
+
+**Why:**  Improves loading speed and reduces network bandwidth.
+
+**Example (using "react-native-fast-image"):**
+
+"""jsx
+import FastImage from 'react-native-fast-image';
+
+const MyImage = ({ source }) => {
+  return (
+    <FastImage
+      style={{ width: 200, height: 200 }}
+      source={source}
+      resizeMode={FastImage.resizeMode.contain}
+    />
+  );
+};
+"""
+
+### 3.3. Image Resizing
+
+*   **Do This:** Resize images server-side or during the build process.
+*   **Don't Do This:** Rely on React Native to resize large images at runtime .
+
+**Why:** Offloads processing from the device and improves loading performance.
+
+## 4. Memory Management
+
+### 4.1. Avoid Memory Leaks
+
+*   **Do This:** Deregister event listeners and timers when components unmount. Use "useEffect" with a cleanup function.
+*   **Don't Do This:** Leave dangling event listeners or timers.
+
+**Why:** Prevents memory leaks and improves app stability.
+
+**Example:**
+
+"""jsx
+import React, { useEffect } from 'react';
+import { DeviceEventEmitter } from 'react-native';
+
+const MyComponent = () => {
+  useEffect(() => {
+    const subscription = DeviceEventEmitter.addListener('myEvent', () => {
+      console.log('Event received');
+    });
+
+    return () => {
+      // Clean up the subscription when the component unmounts
+      subscription.remove();
+    };
+  }, []);
+
+  return <Text>My Component</Text>;
+};
+"""
+
+### 4.2. Reduce Redundant State
+
+*   **Do This:**  Avoid storing the same information in multiple state variables particularly if one can be derived from the other.
+
+**Why**: Prevents unnecessary renders and keeps the apps state management straightforward.
+
+**Example:**
+
+"""jsx
+import React, {useState} from 'react';
+
+const MyComponent = () => {
+  const [items, setItems] = useState([]);
+
+  // deriving "count" prevents the need for a useState
+  const count = items.length;
+
+  const doSomething = () => {
+     /* ... */
+  };
+
+  return(
+     <View>
+        <Text>Length {count}</Text>
+     </View>
+  );
+};
+
+"""
+
+## 5. Native Modules Optimization
+
+### 5.1 Efficient Native Module Design
+*   **Do This:** Design native module methods to perform complex operations efficiently and return results in a structured format. Minimize the number of calls between JavaScript and native code. Utilize background threads/queues on the native side to avoid blocking the main thread.
+
+*   **Don't Do This:** Perform simple operations in native modules that could be done in JavaScript.  Execute long-running or blocking operations on the main thread.
+
+**Why:** Optimizes native execution and prevents ANRs (Application Not Responding) errors on Android, or frozen UI on iOS.
+
+**Example (Android - using AsyncTask):**
+
+"""java
+// Android Java
+import android.os.AsyncTask;
+import com.facebook.react.bridge.Callback;
+import com.facebook.react.bridge.ReactApplicationContext;
+import com.facebook.react.bridge.ReactContextBaseJavaModule;
+import com.facebook.react.bridge.ReactMethod;
+
+public class MyNativeModule extends ReactContextBaseJavaModule {
+
+    public MyNativeModule(ReactApplicationContext reactContext) {
+        super(reactContext);
+    }
+
+    @Override
+    public String getName() {
+        return "MyNativeModule";
+    }
+
+    @ReactMethod
+    public void doLongRunningTask(String input, Callback callback) {
+        new AsyncTask<String, Void, String>() {
+            @Override
+            protected String doInBackground(String... params) {
+                // Simulate a long-running task
+                try {
+                    Thread.sleep(5000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                String result = "Processed: " + params[0];
+                return result;
+            }
+
+            @Override
+            protected void onPostExecute(String result) {
+                callback.invoke(null, result); // Pass result back to JavaScript
+            }
+        }.execute(input);
+    }
+}
+"""
+
+"""javascript
+// JavaScript
+import { NativeModules } from 'react-native';
+
+const doLongRunningTask = async (input) => {
+  try {
+    const result = await new Promise((resolve, reject) => {
+      NativeModules.MyNativeModule.doLongRunningTask(input, (error, data) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve(data);
+        }
+      });
+    });
+    console.log('Result:', result);
+  } catch (error) {
+    console.error('Error:', error);
+  }
+};
+"""
+
+### 5.2 Data Serialization
+*   **Do This:** Utilize efficient data serialization techniques (e.g., JSON) when passing data between JavaScript and native modules
+*   **Don't Do This:** Pass large, complex data structures without appropriate serialization, impacting bridge performance.
+
+**Why:** Reduces the overhead of data transfer across the React Native bridge thus improving communication performance
+
+
+## 6. Monitoring and Profiling
+
+### 6.1. Performance Monitoring
+
+*   **Do This:** Use tools like Flipper or React Native Performance Monitor to identify performance bottlenecks.
+
+*   **Don't Do This:** Deploy without insight into performance metrics
+
+**Why:** Provides awareness of performance regressions and potential areas for improvement.
+
+### 6.2. Profiling Tools
+
+*   **Do This:** Use the React Profiler or native platform profiling tools (e.g., Android Studio Profiler, Xcode Instruments) to analyze component render times and identify performance issues.
+*   **Don't Do This:** Make optimizations without profiling
+
+**Why:**  Helps pinpoint the root cause of performance problems.  The React Profiler helps you identify slow components and understand why components are re-rendering.
+
+## 7. Updates and Deprecations
+*   **Do This:** Stay updated with the latest React Native releases.
+*   **Don't Do This:** Use deprecated features.
+
+**Why:** New releases bring performance improvements, bug fixes, and new features. Deprecated features may be removed in future versions.
+
+These performance standards offer a solid foundation for creating optimized React Native applications. Be sure to continuously monitor, profile, and adapt to the evolving React Native ecosystem.

@@ -1,0 +1,675 @@
+---
+description: API Integration Standard for Flutter
+globs: .dart
+alwaysApply: false
+---
+# API Integration Standards for Flutter
+
+This document outlines the coding standards for API integration in Flutter applications. It aims to provide clear guidelines for connecting with backend services and external APIs, ensuring maintainability, performance, and security. These standards are aligned with the latest versions of Flutter and incorporate modern best practices.
+
+## 1. Architectural Patterns for API Integration
+
+The architectural pattern chosen significantly impacts the maintainability and scalability of your Flutter application, especially when dealing with API integration.
+
+### 1.1 Layered Architecture
+
+**Do This:** Implement a layered architecture to separate concerns:
+
+*   **Presentation Layer (UI):** Widgets and UI-related code.
+*   **Business Logic Layer (BLoC/Provider/Riverpod):** Handles business logic and orchestrates data fetching.
+*   **Data Layer (Repositories):** Abstract data sources (APIs, databases) and provide a unified interface.
+*   **Remote Data Source (API Clients):** Concrete implementations for interacting with specific APIs.
+
+**Don't Do This:** Directly call API endpoints from within your UI widgets. This leads to tightly coupled code, making testing and maintenance difficult.
+
+**Why:** Layered architecture promotes separation of concerns, making the codebase more modular, testable, and maintainable. Changes to one layer have minimal impact on other layers.
+
+**Example:**
+
+"""dart
+// presentation/my_widget.dart
+import 'package:flutter/material.dart';
+import 'package:my_app/business_logic/user_bloc.dart';
+
+class MyWidget extends StatelessWidget {
+  final UserBloc userBloc = UserBloc();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<UserState>(
+      stream: userBloc.userStream,
+      builder: (context, snapshot) {
+        if (snapshot.hasData) {
+          return Text('User: ${snapshot.data!.name}');
+        } else if (snapshot.hasError) {
+          return Text('Error: ${snapshot.error}');
+        } else {
+          return CircularProgressIndicator();
+        }
+      },
+    );
+  }
+}
+
+// business_logic/user_bloc.dart
+import 'dart:async';
+import 'package:my_app/data/user_repository.dart';
+import 'package:my_app/models/user.dart';
+
+class UserBloc {
+  final UserRepository _userRepository = UserRepository();
+  final _userStreamController = StreamController<UserState>();
+
+  Stream<UserState> get userStream => _userStreamController.stream;
+
+  UserBloc() {
+    fetchUser();
+  }
+
+  Future<void> fetchUser() async {
+    try {
+      final user = await _userRepository.getUser();
+      _userStreamController.sink.add(UserState(user.name));
+    } catch (e) {
+      _userStreamController.sink.addError(e);
+    }
+  }
+
+  void dispose() {
+    _userStreamController.close();
+  }
+}
+
+class UserState {
+  final String name;
+  UserState(this.name);
+}
+
+// data/user_repository.dart
+import 'package:my_app/data/remote/user_api.dart';
+import 'package:my_app/models/user.dart';
+
+class UserRepository {
+  final UserApi _userApi = UserApi();
+
+  Future<User> getUser() async {
+    return await _userApi.fetchUser();
+  }
+}
+
+// data/remote/user_api.dart
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:my_app/models/user.dart';
+
+class UserApi {
+  final String baseUrl = 'https://api.example.com';
+
+  Future<User> fetchUser() async {
+    final response = await http.get(Uri.parse('$baseUrl/user'));
+    if (response.statusCode == 200) {
+      final json = jsonDecode(response.body);
+      return User.fromJson(json);
+    } else {
+      throw Exception('Failed to load user');
+    }
+  }
+}
+
+// models/user.dart
+class User {
+  final String name;
+
+  User({required this.name});
+
+  factory User.fromJson(Map<String, dynamic> json) {
+    return User(
+      name: json['name'],
+    );
+  }
+}
+"""
+
+### 1.2 BLoC/Cubit Pattern
+
+**Do This:** Use BLoC (Business Logic Component) or Cubit for managing application state and handling API interactions. Consider using libraries like "flutter_bloc" or "hydrated_bloc" for state persistence.
+
+**Don't Do This:** Directly modify application state within widgets in response to API calls.
+
+**Why:** BLoC/Cubit patterns enforce a clear separation between the UI and business logic, making the application more predictable, testable, and scalable.
+
+**Example (using "flutter_bloc"):**
+
+"""dart
+// bloc/user_bloc.dart
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:my_app/data/user_repository.dart';
+import 'package:my_app/models/user.dart';
+
+// Define events
+abstract class UserEvent {}
+
+class FetchUser extends UserEvent {}
+
+// Define states
+abstract class UserState {}
+
+class UserInitial extends UserState {}
+
+class UserLoading extends UserState {}
+
+class UserLoaded extends UserState {
+  final User user;
+  UserLoaded(this.user);
+}
+
+class UserError extends UserState {
+  final String message;
+  UserError(this.message);
+}
+
+// UserBloc
+class UserBloc extends Bloc<UserEvent, UserState> {
+  final UserRepository userRepository;
+
+  UserBloc({required this.userRepository}) : super(UserInitial()) {
+    on<FetchUser>((event, emit) async {
+      emit(UserLoading());
+      try {
+        final user = await userRepository.getUser();
+        emit(UserLoaded(user));
+      } catch (e) {
+        emit(UserError(e.toString()));
+      }
+    });
+  }
+}
+
+// ui/user_screen.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:my_app/bloc/user_bloc.dart';
+
+class UserScreen extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('User Information')),
+      body: BlocBuilder<UserBloc, UserState>(
+        builder: (context, state) {
+          if (state is UserLoading) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (state is UserLoaded) {
+            return Center(child: Text('User Name: ${state.user.name}'));
+          } else if (state is UserError) {
+            return Center(child: Text('Error: ${state.message}'));
+          } else {
+            return Container();
+          }
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => BlocProvider.of<UserBloc>(context).add(FetchUser()),
+        child: const Icon(Icons.refresh),
+      ),
+    );
+  }
+}
+"""
+
+### 1.3 Using Provider/Riverpod for Dependency Injection
+
+**Do This:** Leverage the "provider" or "riverpod" package for dependency injection and state management, making your code more testable and scalable. Riverpod is generally preferred for new projects due to its compile-time safety and improved features.
+
+**Don't Do This:** Use global variables or singletons to manage dependencies, as this can lead to tight coupling and testing difficulties.
+
+**Why:** Dependency injection promotes loose coupling, allowing you to easily swap implementations (e.g., for testing or different environments) without modifying the consuming code.
+
+**Example (using "riverpod"):**
+
+"""dart
+// providers/user_provider.dart
+import 'package:riverpod/riverpod.dart';
+import 'package:my_app/data/user_repository.dart';
+import 'package:my_app/models/user.dart';
+
+final userRepositoryProvider = Provider<UserRepository>((ref) => UserRepository());
+
+final userProvider = FutureProvider<User>((ref) async {
+  final userRepository = ref.watch(userRepositoryProvider);
+  return userRepository.getUser();
+});
+
+// ui/user_screen.dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:my_app/providers/user_provider.dart';
+
+class UserScreen extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(userProvider);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('User Information')),
+      body: user.when(
+        data: (user) => Center(child: Text('User Name: ${user.name}')),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, stack) => Center(child: Text('Error: ${error}')),
+      ),
+    );
+  }
+}
+"""
+
+## 2. API Client Implementation
+
+### 2.1 Using "http" Package
+
+**Do This:** Use the "http" package for making API requests. Wrap the "http" calls in a dedicated service or repository class for better abstraction and testability.
+
+**Don't Do This:** Directly use the "http" package in UI widgets or BLoC/Cubit classes.
+
+**Why:** The "http" package is a stable and widely used library for making HTTP requests.  Abstraction improves testability and reduces code duplication.
+
+**Example:**
+
+"""dart
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:my_app/models/user.dart';
+
+class UserApiClient {
+  final String baseUrl = 'https://api.example.com';
+  final http.Client client;
+
+  UserApiClient({http.Client? client}) : client = client ?? http.Client(); // Dependency Injection
+
+  Future<User> fetchUser() async {
+    final response = await client.get(Uri.parse('$baseUrl/user'));
+
+    if (response.statusCode == 200) {
+      final json = jsonDecode(response.body);
+      return User.fromJson(json);
+    } else {
+      throw Exception('Failed to load user');
+    }
+  }
+
+  void close() {
+    client.close();
+  }
+}
+"""
+
+**Anti-pattern:**  Not closing the "http.Client".  Resource leaks can occur.  Make sure to close or properly manage the client. Using a dependency injected "http.Client" allows you to easily mock the client for testing.
+
+### 2.2 Using "dio" Package
+
+**Do This:** Consider using the "dio" package, especially for more complex scenarios requiring interceptors, transformers, file uploads, and cancellation tokens.
+
+**Don't Do This:** Overuse "dio" for simple GET requests where the "http" package would suffice.
+
+**Why:** "dio" provides a more feature-rich HTTP client with advanced capabilities, but it also adds more complexity. Use it when its features are required.
+
+**Example:**
+
+"""dart
+import 'package:dio/dio.dart';
+import 'package:my_app/models/user.dart';
+
+class UserApiClient {
+  final String baseUrl = 'https://api.example.com';
+  final Dio dio = Dio();
+
+  UserApiClient() {
+    dio.options.baseUrl = baseUrl;
+    dio.interceptors.add(LogInterceptor(responseBody: true)); // Example interceptor
+  }
+
+
+  Future<User> fetchUser() async {
+    try {
+      final response = await dio.get('/user');
+
+      if (response.statusCode == 200) {
+        return User.fromJson(response.data);
+      } else {
+        throw Exception('Failed to load user');
+      }
+    } on DioException catch (e) {
+      // Handle Dio specific errors
+      print(e.message);
+      throw Exception('Failed to load user');
+    }
+  }
+}
+"""
+
+### 2.3 Handling API Responses
+
+**Do This:** Implement proper error handling for API responses, including checking status codes, parsing error messages, and displaying user-friendly error messages.  Use try-catch blocks and specific exception handling.
+
+**Don't Do This:** Ignore error responses or assume that all API calls will succeed.
+
+**Why:**  Robust error handling is crucial for providing a good user experience and preventing application crashes.
+
+**Example:**
+
+"""dart
+Future<User> fetchUser() async {
+  try {
+    final response = await http.get(Uri.parse('$baseUrl/user'));
+
+    if (response.statusCode == 200) {
+      final json = jsonDecode(response.body);
+      return User.fromJson(json);
+    } else {
+      // Specific status code handling
+      if (response.statusCode == 404) {
+        throw UserNotFoundException('User not found'); // Custom Exception
+      }
+      throw Exception('Failed to load user. Status code: ${response.statusCode}');
+    }
+  } catch (e) {
+    // Network errors, parsing errors, etc.
+    print('Error fetching user: $e');
+    throw Exception('Failed to load user.');
+  }
+}
+
+class UserNotFoundException implements Exception {
+  final String message;
+  UserNotFoundException(this.message);
+
+  @override
+  String toString() {
+    return 'UserNotFoundException: $message';
+  }
+}
+"""
+
+### 2.4 Data Serialization and Deserialization
+
+**Do This:** Use "json_serializable" and "build_runner" packages to automatically generate code for serializing and deserializing JSON data.  This reduces boilerplate and improves type safety.
+
+**Don't Do This:** Manually parse JSON data within your application code.
+
+**Why:** Code generation reduces the risk of errors and makes it easier to maintain your data models.
+
+**Example:**
+
+"""dart
+// models/user.dart
+import 'package:json_annotation/json_annotation.dart';
+
+part 'user.g.dart';
+
+@JsonSerializable()
+class User {
+  final String name;
+  final String? email; // Added email field demonstrating nullable
+
+  User({required this.name, this.email});
+
+  factory User.fromJson(Map<String, dynamic> json) => _$UserFromJson(json);
+
+  Map<String, dynamic> toJson() => _$UserToJson(this);
+}
+"""
+
+Run "flutter pub run build_runner build" to generate "user.g.dart".
+
+"""dart
+// models/user.g.dart (Generated File)
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
+part of 'user.dart';
+
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+User _$UserFromJson(Map<String, dynamic> json) => User(
+      name: json['name'] as String,
+      email: json['email'] as String?,
+    );
+
+Map<String, dynamic> _$UserToJson(User instance) => <String, dynamic>{
+      'name': instance.name,
+      'email': instance.email,
+    };
+"""
+
+### 2.5 Caching API Responses
+
+**Do This:** Implement caching mechanisms (e.g., using "shared_preferences" or a local database like "hive" or "sqflite") to store API responses and reduce the number of network requests. Use "flutter_cache_manager" for caching files, especially images.
+
+**Don't Do This:** Cache sensitive data without proper encryption.
+
+**Why:**  Caching improves performance, reduces bandwidth consumption, and allows the application to work offline or in low-connectivity environments.
+
+**Example (using "shared_preferences"):**
+
+"""dart
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+import 'package:my_app/models/user.dart';
+
+Future<void> cacheUser(User user) async {
+  final prefs = await SharedPreferences.getInstance();
+  final jsonString = jsonEncode(user.toJson());
+  await prefs.setString('user', jsonString);
+}
+
+Future<User?> getCachedUser() async {
+  final prefs = await SharedPreferences.getInstance();
+  final jsonString = prefs.getString('user');
+  if (jsonString != null) {
+    final json = jsonDecode(jsonString);
+    return User.fromJson(json);
+  }
+  return null;
+}
+"""
+
+### 2.6  Authentication and Authorization
+
+**Do This:** Use secure authentication and authorization mechanisms (e.g., OAuth 2.0, JWT) to protect your APIs and user data. Store tokens securely using secure storage mechanisms like "flutter_secure_storage" package.
+
+**Don't Do This:** Store sensitive information (passwords, API keys) directly in the code or "shared_preferences" without encryption.
+
+**Why:** Security is paramount.  Proper authentication and authorization prevent unauthorized access to your application and data.  Never commit secrets to your source repository.
+
+**Example (using "flutter_secure_storage"):**
+
+"""dart
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+final _storage = FlutterSecureStorage();
+
+Future<void> storeToken(String token) async {
+  await _storage.write(key: 'authToken', value: token);
+}
+
+Future<String?> getToken() async {
+  return await _storage.read(key: 'authToken');
+}
+
+Future<void> deleteToken() async {
+  await _storage.delete(key: 'authToken');
+}
+"""
+
+### 2.7  API Key Management
+
+**Do This:**  Use environment variables or secure configuration files to store API keys.  Never hardcode API keys directly into your code. Implement build flavors to manage different API keys for different environments (development, staging, production).
+
+**Don't Do This:**  Commit API keys to your source code repository.
+
+**Why:** Preventing exposure of API keys is critical for service usage and cost control, and general threat prevention.
+
+**Example:**
+
+1.  **Create ".env" files:**
+    *   ".env.development" (for development environment)
+    *   ".env.staging" (for staging environment)
+    *   ".env.production" (for production environment)
+
+    In each file, define your API keys:
+
+    """
+    API_KEY=YOUR_DEVELOPMENT_API_KEY
+    """
+
+2.  **Use "flutter_dotenv" package:**
+
+    """dart
+    dependencies:
+      flutter_dotenv: ^5.2.0 //Use the latest version
+    """
+
+3.  **Load the environment variables:**
+
+  In your "main.dart":
+
+    """dart
+    import 'package:flutter_dotenv/flutter_dotenv.dart';
+
+    Future<void> main() async {
+      await dotenv.load(fileName: ".env.development"); // Load .env file relevant for the environment
+      runApp(MyApp());
+    }
+    """
+
+4.  **Access the API key:**
+
+    """dart
+    import 'package:flutter_dotenv/flutter_dotenv.dart';
+
+    final apiKey = dotenv.env['API_KEY'];
+    """
+
+## 3. Performance Optimization
+
+### 3.1  Background Tasks
+
+**Do This:**  Use background tasks ("compute" function, "Isolate"s, or background services) for long-running API operations to prevent blocking the main thread and causing UI freezes.  Consider using libraries like "workmanager" or "flutter_background_service" for more complex background processing requirements.
+
+**Don't Do This:**  Perform heavy API processing directly on the main thread.
+
+**Why:** Keeping the main thread responsive is essential for providing a smooth user experience.
+
+**Example (using "compute"):**
+
+"""dart
+import 'package:flutter/foundation.dart';
+
+Future<User> fetchUserInBackground() async {
+  return compute(_fetchUser, null);
+}
+
+Future<User> _fetchUser(dynamic _) async {
+  // Perform API call and data processing here
+  final client = UserApiClient();
+  try {
+    return await client.fetchUser();
+  } finally {
+    client.close();
+  }
+
+}
+"""
+
+### 3.2  Image Optimization
+
+**Do This:** Optimize images before uploading to the server and use appropriate image formats (e.g., WebP) to reduce file sizes. Lazy-load images using libraries like "cached_network_image" to improve initial load times.
+
+**Don't Do This:** Load large, unoptimized images directly from the network.
+
+**Why:** Image optimization reduces bandwidth consumption and improves application performance.
+
+### 3.3  Data Compression
+
+**Do This:** Consider using data compression techniques (e.g., gzip) to reduce the size of API responses, especially for large datasets.
+
+**Don't Do This:**  Assume that data compression is handled automatically.
+
+**Why:** Data compression reduces bandwidth consumption and improves data transfer speeds.  Ensure that server and client are correctly configured to make use of compressed data transfer.
+
+## 4. Testing
+
+### 4.1 Unit Testing
+
+**Do This:** Write unit tests for your API client and data models to ensure that they are working correctly and handling different scenarios.  Use mocking libraries (e.g., "mockito") to isolate your code from external dependencies.
+
+**Don't Do This:** Skip unit testing for API integration logic.
+
+**Why:** Unit tests help to identify and fix bugs early in the development process and ensure that your code is robust and reliable.
+
+**Example (using "mockito"):**
+
+"""dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mockito/mockito.dart';
+import 'package:http/http.dart' as http;
+import 'package:my_app/data/remote/user_api.dart';
+import 'package:my_app/models/user.dart';
+import 'dart:convert';
+
+class MockClient extends Mock implements http.Client {}
+
+void main() {
+  group('UserApi', () {
+    test('fetches a user successfully', () async {
+      final client = MockClient();
+      final userApi = UserApi(client: client);
+
+      // Mock the HTTP response
+      when(client.get(Uri.parse('https://api.example.com/user')))
+          .thenAnswer((_) async => http.Response(jsonEncode({'name': 'Test User'}), 200));
+
+      final user = await userApi.fetchUser();
+
+      expect(user.name, 'Test User');
+    });
+
+    test('throws an exception if the http call completes with an error', () async {
+      final client = MockClient();
+      final userApi = UserApi(client: client);
+
+      // Mock an error response
+      when(client.get(Uri.parse('https://api.example.com/user')))
+          .thenAnswer((_) async => http.Response('Not Found', 404));
+
+      expect(() => userApi.fetchUser(), throwsException);
+    });
+  });
+}
+"""
+
+### 4.2  Integration Testing
+
+**Do This:**  Write integration tests to verify that your application can successfully communicate with the backend API. You can use tools like "mocktail" to create more robust mocks
+
+**Don't Do This:** Rely solely on manual testing for API integration. Automate E2E and integration tests wherever possible.
+
+**Why:** Integration tests ensure that the different parts of your application work together correctly and that the API integration is functioning as expected.
+
+## 5. Documentation
+
+### 5.1 API Documentation
+
+**Do This:** Provide clear and concise documentation for your API integration code, including details about API endpoints, request parameters, response formats, and error handling. Use documentation generators like  "dartdoc" to create API documentation.
+
+**Don't Do This:**  Leave your API integration code undocumented.
+
+**Why:** Clear documentation makes it easier for other developers to understand and maintain your code.
+
+### 5.2 Code Comments
+
+**Do This:** Add meaningful comments to your code to explain complex logic, design decisions, and potential issues.
+
+**Don't Do This:** Over-comment or write obvious comments that simply repeat what the code does.
+
+**Why:** Code comments improve the readability and maintainability of your code. Ensure documentation is updated when code changes.

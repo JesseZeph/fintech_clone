@@ -1,0 +1,796 @@
+---
+description: State Management Standards for React Native
+globs: .tsx
+alwaysApply: false
+---
+# State Management Standards for React Native
+
+This document outlines the coding standards for state management in React Native applications. It provides guidelines for choosing appropriate state management solutions, structuring data flow, and writing maintainable and performant code.
+
+## 1. Guiding Principles
+
+*   **Single Source of Truth:** Each piece of application state should have a single, authoritative source. Avoid duplicating state across multiple components, as this leads to inconsistencies and difficulties in maintaining data integrity.
+*   **Predictable State Updates:** State updates should be predictable and traceable.  Favor immutable data structures and pure functions to ensure that state changes are easily understood and debugged.
+*   **Component Isolation:** Promote component isolation by only providing components with the data they require. Use techniques like prop drilling through context or selectors with global state management solutions to avoid unnecessary re-renders.
+*   **Performance:**  Optimize state updates and rendering to ensure a smooth user experience. Use memoization techniques, lazy loading of data, and efficient data structures to minimize performance bottlenecks.
+*   **Testability:** Adhere to principles that allow for adequate testing on state management and data handling logic.
+*   **Data serialization:** Ensure proper serialzation/deserialization of local storage and network layer for data consistency.
+
+## 2. State Management Options
+
+Choosing the right state management solution is crucial for building scalable React Native applications. Consider the following options:
+
+### 2.1 "useState" and "useReducer" (Local Component State)
+
+*   **Use Case:** Managing simple, component-local state.
+*   **Do This:**
+    *   Use "useState" for simple state variables that change infrequently.
+    *   Use "useReducer" for managing more complex state logic, especially when the next state depends on the previous state.
+*   **Don't Do This:**
+    *   Overuse "useState" in deeply nested components where the state could be managed more effectively at a higher level.
+    *   Mutate state directly. Always use the setter function provided by "useState" or "useReducer".
+
+"""javascript
+// useState example
+import React, { useState } from 'react';
+import { View, Text, Button } from 'react-native';
+
+const Counter = () => {
+  const [count, setCount] = useState(0);
+
+  return (
+    <View>
+      <Text>Count: {count}</Text>
+      <Button title="Increment" onPress={() => setCount(count + 1)} />
+    </View>
+  );
+};
+
+export default Counter;
+
+// useReducer example
+import React, { useReducer } from 'react';
+import { View, Text, Button } from 'react-native';
+
+const initialState = { count: 0 };
+
+const reducer = (state, action) => {
+  switch (action.type) {
+    case 'increment':
+      return { count: state.count + 1 };
+    case 'decrement':
+      return { count: state.count - 1 };
+    default:
+      return state;
+  }
+};
+
+const CounterReducer = () => {
+  const [state, dispatch] = useReducer(reducer, initialState);
+
+  return (
+    <View>
+      <Text>Count: {state.count}</Text>
+      <Button title="Increment" onPress={() => dispatch({ type: 'increment' })} />
+      <Button title="Decrement" onPress={() => dispatch({ type: 'decrement' })} />
+    </View>
+  );
+};
+
+export default CounterReducer;
+"""
+
+#### 2.1.1 "useReducer" for Complex State Transitions
+
+For state logic that requires more structured updates, utilize "useReducer". It allows you to define a reducer function that dictates how the state should change based on actions.
+
+"""javascript
+import React, { useReducer } from 'react';
+import { View, Text, Button } from 'react-native';
+
+const initialTodos = [
+  { id: 1, text: 'Learn Reducer', completed: false },
+];
+
+const todosReducer = (state, action) => {
+  switch (action.type) {
+    case 'ADD_TODO':
+      return [...state, { id: Date.now(), text: action.text, completed: false }];
+    case 'TOGGLE_TODO':
+      return state.map((todo) =>
+        todo.id === action.id ? { ...todo, completed: !todo.completed } : todo
+      );
+    default:
+      return state;
+  }
+};
+
+const Todos = () => {
+  const [todos, dispatch] = useReducer(todosReducer, initialTodos);
+
+  const addTodo = () => {
+    dispatch({ type: 'ADD_TODO', text: 'New Todo' });
+  };
+
+  const toggleTodo = (id) => {
+    dispatch({ type: 'TOGGLE_TODO', id });
+  };
+
+  return (
+    <View>
+      {todos.map((todo) => (
+        <Button key={todo.id} title={todo.text} onPress={() => toggleTodo(todo.id)} />
+      ))}
+      <Button title="Add Todo" onPress={addTodo} />
+    </View>
+  );
+};
+"""
+
+#### 2.1.2 Avoiding Direct Mutation
+
+Always return a new state object from the reducer. Avoid direct mutation of the state, as it can lead to unexpected behavior and performance problems.
+
+"""javascript
+// Do this:
+const reducer = (state, action) => {
+  return { ...state, value: action.payload }; // Create a new object
+
+};
+
+// Don't do this:
+const reducer = (state, action) => {
+    state.value = action.payload; // Direct mutation
+    return state;
+};
+"""
+
+### 2.2 Context API (Global Component State)
+
+*   **Use Case:**  Sharing state between components without prop drilling. Can also be used as simplistic global state management and dependency injection.
+*   **Do This:**
+    *   Use "Context.Provider" to wrap the part of your component tree that needs access to the context.
+    *   Use "useContext" hook to consume the context value in functional components.
+    *   Create custom hooks that wrap "useContext" for more maintainable and reusable code.
+*   **Don't Do This:**
+    *   Store large amounts of rapidly changing data in context, as it can cause unnecessary re-renders. Consider using a more optimized global state management solution such as Redux or Zustand for such cases.
+    *   Mutate the context value directly.  Always provide a mechanism for updating the context value through a provider function.
+
+"""javascript
+// Create a context
+import React, { createContext, useState, useContext } from 'react';
+import { View, Text, Button } from 'react-native';
+
+const ThemeContext = createContext();
+
+// Create a provider
+const ThemeProvider = ({ children }) => {
+  const [theme, setTheme] = useState('light');
+
+  const toggleTheme = () => {
+    setTheme(theme === 'light' ? 'dark' : 'light');
+  };
+
+  return (
+    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  );
+};
+
+// Custom Hook that wraps useContext
+const useTheme = () => {
+  return useContext(ThemeContext);
+};
+
+// Consumer component
+const ThemedComponent = () => {
+  const { theme, toggleTheme } = useTheme();
+
+  return (
+    <View style={{ backgroundColor: theme === 'light' ? 'white' : 'black' }}>
+      <Text style={{ color: theme === 'light' ? 'black' : 'white' }}>
+        Current Theme: {theme}
+      </Text>
+      <Button title="Toggle Theme" onPress={toggleTheme} />
+    </View>
+  );
+};
+
+// App component
+const App = () => {
+  return (
+    <ThemeProvider>
+      <ThemedComponent />
+    </ThemeProvider>
+  );
+};
+
+export default App;
+"""
+
+#### 2.2.1 Value stability for Context
+
+*   **Do This:** Ensure stability of provided value for context. For example, when the context becomes too large, provide a memoized function.
+
+"""javascript
+// Stable context provider, wrapping theme and toggler together.
+const ThemeProvider = ({ children }) => {
+    const [theme, setTheme] = useState('light');
+
+    // Memoize toggleTheme to prevent unnecessary re-renders
+    const toggleTheme = useCallback(() => {
+      setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
+    }, []);
+
+    const value = useMemo(() => ({ theme, toggleTheme }), [theme, toggleTheme]);
+
+    return (
+      <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
+    );
+  };
+"""
+
+### 2.3 Redux (Global State Management)
+
+*   **Use Case:**  Managing complex application state, especially when state is shared across many components and requires predictable updates.
+*   **Do This:**
+    *   Use Redux Toolkit to simplify Redux setup and reduce boilerplate code.
+    *   Structure your state into logical slices.
+    *   Use selectors to efficiently derive data from the store.
+    *   Favor asynchronous actions with Redux Thunk or Redux Saga for handling side effects.
+*   **Don't Do This:**
+    *   Use Redux for simple applications where component-local state or Context API would suffice.
+    *   Mutate state directly in reducers.  Always return a new state object.
+    *   Put non-serializable data in the Redux store (functions, class instances, etc.).
+
+"""javascript
+// Redux Toolkit setup
+import { configureStore, createSlice } from '@reduxjs/toolkit';
+import { Provider, useDispatch, useSelector } from 'react-redux';
+import React from 'react';
+import { View, Text, Button } from 'react-native';
+
+// Create a slice
+const counterSlice = createSlice({
+  name: 'counter',
+  initialState: {
+    value: 0,
+  },
+  reducers: {
+    increment: (state) => {
+      state.value += 1;
+    },
+    decrement: (state) => {
+      state.value -= 1;
+    },
+  },
+});
+
+// Export actions and reducer
+export const { increment, decrement } = counterSlice.actions;
+const counterReducer = counterSlice.reducer;
+
+// Create the store
+const store = configureStore({
+  reducer: {
+    counter: counterReducer,
+  },
+});
+
+// Component using Redux
+const CounterRedux = () => {
+  const count = useSelector((state) => state.counter.value);
+  const dispatch = useDispatch();
+
+  return (
+    <View>
+      <Text>Count: {count}</Text>
+      <Button title="Increment" onPress={() => dispatch(increment())} />
+      <Button title="Decrement" onPress={() => dispatch(decrement())} />
+    </View>
+  );
+};
+
+// Root component
+const App = () => {
+  return (
+    <Provider store={store}>
+      <CounterRedux />
+    </Provider>
+  );
+};
+
+export default App;
+"""
+
+#### 2.3.1 Redux Thunk for Asynchronous Actions
+
+Use Redux Thunk middleware to handle asynchronous actions, such as fetching data from an API.
+
+"""javascript
+// Example using Redux Thunk
+import { createAsyncThunk } from '@reduxjs/toolkit';
+
+// Async thunk action
+export const fetchUser = createAsyncThunk(
+  'user/fetchUser',
+  async (userId, { rejectWithValue }) => {
+    try {
+      const response = await fetch("https://api.example.com/users/${userId}");
+          if (!response.ok) {
+              // Handle HTTP errors
+              return rejectWithValue("HTTP error! status: ${response.status}");
+          }
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      // Handle network errors
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+// Update the slice
+const userSlice = createSlice({
+  name: 'user',
+  initialState: { user: null, loading: false, error: null },
+  reducers: {},
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchUser.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchUser.fulfilled, (state, action) => {
+        state.loading = false;
+        state.user = action.payload;
+      })
+      .addCase(fetchUser.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;  // Use custom error message from the thunk
+      });
+  },
+});
+"""
+
+#### 2.3.2 Selectors
+
+Use selectors (e.g., Reselect) to derive data from the Redux store efficiently. Selectors memoize their results, preventing unnecessary recomputations and re-renders.
+
+"""javascript
+// Example using Reselect
+import { createSelector } from '@reduxjs/toolkit';
+import { useSelector } from 'react-redux';
+
+const selectCounterValue = (state) => state.counter.value;
+
+export const selectDoubleCounterValue = createSelector(
+  [selectCounterValue],
+  (value) => value * 2
+);
+
+const MyComponent = () => {
+  const doubleCount = useSelector(selectDoubleCounterValue);
+
+  return <Text>Double Count: {doubleCount}</Text>;
+};
+"""
+
+### 2.4 Zustand (Global State Management)
+
+*   **Use Case:** Simpler alternative to Redux for global state management with a minimal API.
+*   **Do This:**
+    *   Define your store using the "create" function.
+    *   Use the "set" function to update state.
+    *   Use selectors to access state in components.
+*   **Don't Do This:**
+    *   Overcomplicate your store logic. Zustand is designed to be simple.
+    *   Mutate state directly. Always use the "set" function.
+
+"""javascript
+// Zustand store
+import create from 'zustand';
+import { View, Text, Button } from 'react-native';
+import React from 'react';
+
+const useStore = create((set) => ({
+  count: 0,
+  increment: () => set((state) => ({ count: state.count + 1 })),
+  decrement: () => set((state) => ({ count: state.count - 1 })),
+}));
+
+// Component using Zustand
+const CounterZustand = () => {
+  const { count, increment, decrement } = useStore((state) => ({
+    count: state.count,
+    increment: state.increment,
+    decrement: state.decrement,
+  }));
+
+  return (
+    <View>
+      <Text>Count: {count}</Text>
+      <Button title="Increment" onPress={increment} />
+      <Button title="Decrement" onPress={decrement} />
+    </View>
+  );
+};
+
+export default CounterZustand;
+"""
+
+### 2.5 Jotai (Global State Management)
+
+*   **Use Case:**  Atomic state management library, suitable for fine-grained state updates with optimized re-renders.
+*   **Do This:**
+    *   Define atoms for individual pieces of state.
+    *   Use the "useAtom" hook to read and update atoms in components.
+    *   Compose atoms to derive computed values.
+*   **Don't Do This:**
+    *   Create too many atoms for closely related state, which can make your code harder to understand.
+    *   Overuse derived atoms, which can lead to performance issues if they are not properly memoized.
+
+"""javascript
+// Jotai atoms
+import { atom, useAtom } from 'jotai';
+import { View, Text, Button } from 'react-native';
+import React from 'react';
+
+const countAtom = atom(0);
+
+const CounterJotai = () => {
+  const [count, setCount] = useAtom(countAtom);
+
+  return (
+    <View>
+      <Text>Count: {count}</Text>
+      <Button title="Increment" onPress={() => setCount(count + 1)} />
+      <Button title="Decrement" onPress={() => setCount(count - 1)} />
+    </View>
+  );
+};
+
+export default CounterJotai;
+"""
+
+#### 2.5.1 Derived atoms in Jotai
+
+Derived atoms are a powerful way to compute new atoms based on other atoms.
+
+"""javascript
+import { atom, useAtom } from 'jotai';
+
+const basePriceAtom = atom(10);
+const discountAtom = atom(0.2);
+
+const discountedPriceAtom = atom((get) => {
+  const basePrice = get(basePriceAtom);
+  const discount = get(discountAtom);
+  return basePrice * (1 - discount);
+});
+
+const PriceDisplay = () => {
+    const [discountedPrice] = useAtom(discountedPriceAtom);
+
+    return (
+        <Text>Discounted Price: {discountedPrice}</Text>
+    );
+};
+"""
+
+## 3. Data Fetching and API Integration
+
+*   **Use Case:** Data fetching from REST APIs and GraphQL APIs.
+*   **Do This:**
+    *   Use libraries like "axios" or the built-in "fetch" API for making HTTP requests.
+    *   Use "useEffect" hook to fetch data when the component mounts.
+    *   Implement proper error handling and loading states for a better user experience.
+    *   Use caching mechanisms to avoid redundant API calls.
+    *   Consider using libraries like "react-query" or "swr" for simplified data fetching and caching.
+*   **Don't Do This:**
+    *   Make API calls directly in the render function, as this can lead to performance issues and infinite loops.
+    *   Ignore error handling, which can result in unexpected app behavior.
+    *   Store sensitive API keys directly in the code. Use environment variables.
+
+"""javascript
+// Data fetching with useEffect
+import React, { useState, useEffect } from 'react';
+import { View, Text } from 'react-native';
+import axios from 'axios';
+
+const DataFetcher = () => {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const result = await axios('https://api.example.com/data');
+        setData(result.data);
+        setLoading(false);
+      } catch (e) {
+        setError(e);
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []); // Empty dependency array to run only on mount
+
+  if (loading) {
+    return <Text>Loading...</Text>;
+  }
+
+  if (error) {
+    return <Text>Error: {error.message}</Text>;
+  }
+
+  return (
+    <View>
+      <Text>Data: {JSON.stringify(data)}</Text>
+    </View>
+  );
+};
+
+export default DataFetcher;
+"""
+
+#### 3.1.1 Using "react-query" for Data Fetching and Caching
+
+"react-query" simplifies data fetching, caching, and updating in React applications.
+
+"""javascript
+import { useQuery } from 'react-query';
+import { View, Text } from 'react-native';
+
+const fetchData = async () => {
+  const response = await fetch('https://api.example.com/data');
+  if (!response.ok) {
+    throw new Error('Network response was not ok');
+  }
+  return response.json();
+};
+
+const DataFetcherWithReactQuery = () => {
+  const { data, isLoading, error } = useQuery('myData', fetchData);
+
+  if (isLoading) {
+    return <Text>Loading...</Text>;
+  }
+
+  if (error) {
+    return <Text>Error: {error.message}</Text>;
+  }
+
+  return (
+    <View>
+      <Text>Data: {JSON.stringify(data)}</Text>
+    </View>
+  );
+};
+
+export default DataFetcherWithReactQuery;
+"""
+
+## 4. Updating and Transforming State
+
+*   **Use Case:** Correctly updating and transforming state in React Native components. Focus on immutability.
+*   **Do This:**
+    *   Use immutable update patterns to avoid unexpected side effects.
+    *   When updating arrays or objects in state, create new copies instead of modifying the original objects.
+    *   Use the spread operator ("...") to create shallow copies of objects and arrays.
+    *   Use libraries like "immer" for simplifying immutable updates with deeply nested objects.
+*   **Don't Do This:**
+    *   Mutate state directly (e.g., "state.push(newItem)").
+    *   Forget to update nested objects immutably.
+
+"""javascript
+// Immutable updates
+import React, { useState } from 'react';
+import { View, Text, Button } from 'react-native';
+
+const ImmutableUpdate = () => {
+  const [items, setItems] = useState([{ id: 1, name: 'Item 1' }]);
+
+  const addItem = () => {
+    setItems([...items, { id: Date.now(), name: 'New Item' }]);
+  };
+
+  const updateItem = (id, newName) => {
+    setItems(
+      items.map((item) => (item.id === id ? { ...item, name: newName } : item))
+    );
+  };
+
+  return (
+    <View>
+      {items.map((item) => (
+        <Text key={item.id}>{item.name}</Text>
+      ))}
+      <Button title="Add Item" onPress={addItem} />
+      <Button title="Update Item 1" onPress={() => updateItem(1, 'Updated Item')} />
+    </View>
+  );
+};
+
+export default ImmutableUpdate;
+"""
+
+### 4.1 Using Immer for Complex Immutable Updates
+
+"immer" simplifies working with immutable data structures, especially when dealing with deeply nested objects.
+
+"""javascript
+import React, { useState } from 'react';
+import { View, Text, Button } from 'react-native';
+import { useImmer } from 'use-immer';
+
+const ImmerExample = () => {
+  const [state, updateState] = useImmer({
+    user: {
+      name: 'Alice',
+      address: {
+        street: '123 Main St',
+        city: 'Anytown',
+      },
+    },
+  });
+
+  const updateCity = () => {
+    updateState((draft) => {
+      draft.user.address.city = 'Newtown';
+    });
+  };
+
+  return (
+    <View>
+      <Text>Name: {state.user.name}</Text>
+      <Text>City: {state.user.address.city}</Text>
+      <Button title="Update City" onPress={updateCity} />
+    </View>
+  );
+};
+"""
+
+## 5. Performance Optimization
+
+*   **Use Case:** Optimizing React Native state management for smooth UI.
+*   **Do This:**
+    *   Use "React.memo" to prevent unnecessary re-renders of components.
+    *   Use "useCallback" to memoize event handlers.
+    *   Use "useMemo" to memoize expensive computations.
+    *   Virtualize long lists with "FlatList" or "SectionList" to improve scrolling performance. Avoid "map" on large arrays where possible.
+    *   Avoid unnecessary state updates by comparing previous and next values.
+*   **Don't Do This:**
+    *   Overuse "React.memo", "useCallback", and "useMemo", as they can add unnecessary overhead if not used judiciously.
+    *   Update state frequently with large amounts of data, as it can cause performance bottlenecks.
+
+"""javascript
+// Memoization with React.memo
+import React from 'react';
+import { View, Text } from 'react-native';
+
+const MyComponent = ({ data }) => {
+  console.log('MyComponent rendered');
+  return <Text>Data: {data}</Text>;
+};
+
+const MemoizedComponent = React.memo(MyComponent);
+
+// Memoization with useCallback
+import React, { useCallback } from 'react';
+import { Button } from 'react-native';
+
+const MyButton = ({ onClick }) => {
+  console.log('MyButton rendered');
+  return <Button title="Click Me" onPress={onClick} />;
+};
+
+const MemoizedButton = React.memo(MyButton);
+
+const ParentComponent = () => {
+  const handleClick = useCallback(() => {
+    console.log('Button clicked');
+  }, []);
+
+  return <MemoizedButton onClick={handleClick} />;
+};
+
+// Virtualized list
+import React from 'react';
+import { FlatList, Text, View } from 'react-native';
+
+const data = Array.from({ length: 1000 }, (_, i) => ({ id: i, text: "Item ${i}" }));
+
+const Item = React.memo(({ text }) => {
+  console.log("Item ${text} rendered");
+  return <Text>{text}</Text>;
+});
+
+const MyList = () => {
+  const renderItem = ({ item }) => <Item text={item.text} />;
+
+  return (
+    <FlatList
+      data={data}
+      renderItem={renderItem}
+      keyExtractor={(item) => item.id.toString()}
+    />
+  );
+};
+"""
+
+## 6. Testing State Management
+
+*   **Use Case:** Testing React Native state management code thoroughly.
+*   **Do This:**
+    *   Write unit tests for reducers, actions, and selectors.
+    *   Use mock stores and providers to isolate components during testing.
+    *   Test side effects (e.g., API calls) using mock libraries like "axios-mock-adapter".
+    *   Write integration tests to verify the interaction between components and state management logic.
+    * Mock API calls for testing the data fetching and success and failure states.
+*   **Don't Do This:**
+    *   Skip testing state management logic.
+    *   Write brittle tests that rely on implementation details rather than behavior.
+
+"""javascript
+// Example using Jest and React Testing Library with React Hook Form
+import React from 'react';
+import { render, screen, fireEvent } from '@testing-library/react-native';
+import { useForm } from 'react-hook-form';
+
+// Test component
+const MyForm = () => {
+  const { register, handleSubmit, formState: { errors } } = useForm();
+
+  const onSubmit = (data) => {
+    alert(JSON.stringify(data));
+  };
+
+  return (
+    <View>
+      <TextInput
+        placeholder="Name"
+        {...register('name', { required: 'Name is required' })}
+      />
+      {errors.name && <Text>{errors.name.message}</Text>}
+      <Button title="Submit" onPress={handleSubmit(onSubmit)} />
+    </View>
+  );
+};
+
+// Test case
+it('should display an error message if name is not entered', () => {
+  render(<MyForm />);
+  fireEvent.press(screen.getByText('Submit'));
+  expect(screen.getByText('Name is required')).toBeTruthy();
+});
+
+it('should submit the form with valid data', () => {
+    const alertMock = jest.spyOn(window, 'alert'); // Mock the alert function
+    render(<MyForm />);
+    const nameInput = screen.getByPlaceholderText('Name');
+    fireEvent.changeText(nameInput, 'John Doe');
+    fireEvent.press(screen.getByText('Submit'));
+    expect(alertMock).toHaveBeenCalledWith(JSON.stringify({ name: 'John Doe' })); // Check if the alert was called with the correct data
+    alertMock.mockRestore(); // Restore alert to original function
+  });
+"""
+## 7. Security Considerations
+
+*   **Use Case:** State Management security standards for React Native
+*   **Do This:**
+    *   Avoid storing sensitive data directly in state management solutions that can be easily accessed (e.g., tokens, passwords, etc.).
+    *   Encrypt sensitive data before storing it in local storage or global state.
+    *   Sanitize user inputs before updating the state to prevent XSS attacks.
+    *   Implement proper authentication and authorization mechanisms to protect sensitive API endpoints.
+*   **Don't Do This:**
+    *   Store sensitive information in plain text.
+    *   Trust user input without validation and sanitization.
+    *   Expose sensitive data in client-side code.
+
+## 8. Conclusion
+
+Adhering to these standards can significantly improve the quality, maintainability, and performance of React Native applications. By selecting the right architecture and tools, and writing clean, testable code, developers can create robust and scalable solutions that deliver a great user experience.

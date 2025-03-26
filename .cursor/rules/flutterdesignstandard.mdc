@@ -1,0 +1,764 @@
+---
+description: Component Design Standards for Flutter
+globs: .dart
+alwaysApply: false
+---
+# Component Design Standards for Flutter
+
+This document outlines the component design standards for Flutter development. These standards aim to promote reusable, maintainable, and performant components within Flutter applications. They are based on the latest Flutter best practices and incorporate modern design patterns.
+
+## 1. Principles of Component Design in Flutter
+
+### 1.1 Reusability
+
+**Standard:** Components should be designed to be reusable across multiple parts of the application or even across different applications.
+
+*Why?* Reusability reduces code duplication, simplifies maintenance, and ensures consistency in the user interface.
+
+**Do This:**
+
+*   Design components with configurable properties.
+*   Avoid hardcoding values; use parameters instead.
+*   Create generic components that can adapt to different data types or scenarios.
+
+**Don't Do This:**
+
+*   Creating components tightly coupled to specific parts of the application.
+*   Hardcoding values specific to one context within a component's implementation.
+*   Building components that perform too many unrelated tasks.
+
+**Example:**
+
+"""dart
+// Good: A reusable button component
+import 'package:flutter/material.dart';
+
+class CustomButton extends StatelessWidget {
+  final String text;
+  final VoidCallback onPressed;
+  final Color? color;
+
+  const CustomButton({
+    Key? key,
+    required this.text,
+    required this.onPressed,
+    this.color,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color ?? Theme.of(context).primaryColor,
+      ),
+      child: Text(text),
+    );
+  }
+}
+
+// Usage
+CustomButton(
+  text: 'Submit',
+  onPressed: () {
+    // Handle submit action
+  },
+),
+CustomButton(
+  text: 'Cancel',
+  onPressed: () {
+    // Handle cancel action
+  },
+  color: Colors.red,
+)
+"""
+
+"""dart
+// Bad: A button tightly coupled to a specific use case
+import 'package:flutter/material.dart';
+
+class SubmitButton extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton(
+      onPressed: () {
+        // Specific submit logic here, making it hard to reuse
+      },
+      child: Text('Submit Order'),
+    );
+  }
+}
+"""
+
+### 1.2 Maintainability
+
+**Standard:** Components should be designed to be easily understood, modified, and updated.
+
+*Why?* Maintainability reduces the effort required to fix bugs, add new features, or refactor existing code.
+
+**Do This:**
+
+*   Write clear and concise code with comments explaining complex logic.
+*   Follow the Single Responsibility Principle: each component should have one specific job.
+*   Use meaningful names for variables, functions, and classes.
+*   Keep components small.
+
+**Don't Do This:**
+
+*   Writing long, complicated functions or classes.
+*   Lack of documentation.
+*   Skipping unit tests.
+
+**Example:**
+
+"""dart
+// Good: A well-structured and commented component
+import 'package:flutter/material.dart';
+
+/// A custom text input field with validation.
+class CustomTextField extends StatefulWidget {
+  final String label;
+  final String? Function(String?)? validator;
+  final TextEditingController controller;
+  final bool obscureText;
+
+  const CustomTextField({
+    Key? key,
+    required this.label,
+    this.validator,
+    required this.controller,
+    this.obscureText = false,
+  }) : super(key: key);
+
+  @override
+  _CustomTextFieldState createState() => _CustomTextFieldState();
+}
+
+class _CustomTextFieldState extends State<CustomTextField> {
+  @override
+  Widget build(BuildContext context) {
+    return TextFormField(
+      controller: widget.controller,
+      decoration: InputDecoration(
+        labelText: widget.label,
+        border: OutlineInputBorder(),
+      ),
+      validator: widget.validator,
+      obscureText: widget.obscureText,
+    );
+  }
+}
+"""
+
+"""dart
+// Bad: An overly complex and undocumented component
+import 'package:flutter/material.dart';
+
+class WeirdWidget extends StatefulWidget {
+  @override
+  _WeirdWidgetState createState() => _WeirdWidgetState();
+}
+
+class _WeirdWidgetState extends State<WeirdWidget> {
+  int x = 0;
+  bool y = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            x++;
+            y = !y;
+          });
+        },
+        child: Text('Click me $x'),
+      ),
+    );
+  }
+}
+
+"""
+
+### 1.3 Performance
+
+**Standard:** Components should be designed to minimize their impact on application performance.
+
+*Why?* High performance ensures a smooth and responsive user experience.
+
+**Do This:**
+
+*   Use "const" constructors for immutable widgets.
+*   Avoid unnecessary rebuilds using "const", "final", and "ValueKey".
+*   Optimize image loading and caching.
+*   Use the "ListView.builder" constructor for large lists and grids.
+
+**Don't Do This:**
+
+*   Creating very deep widget trees.
+*   Performing heavy calculations within the "build" method.
+*   Ignoring memory leaks.
+
+**Example:**
+
+"""dart
+// Good: Using const constructor for an immutable widget
+import 'package:flutter/material.dart';
+
+class MyStaticText extends StatelessWidget {
+  final String text;
+
+  const MyStaticText({Key? key, required this.text}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(text);
+  }
+}
+
+// Usage (improved performance)
+const MyStaticText(text: 'Hello World'); // const keyword ensures this widget is only built once
+"""
+
+"""dart
+// Bad: Rebuilding the widget unnecessarily
+import 'package:flutter/material.dart';
+
+class MyDynamicText extends StatelessWidget {
+  final String text;
+
+  MyDynamicText({Key? key, required this.text}) : super(key: key); // Missing const
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(text);
+  }
+}
+"""
+
+### 1.4 Testability
+
+**Standard:**  Components should be designed to be easily tested in isolation.
+
+*Why?* Testability helps to ensure the correctness of software, and find bugs early.
+
+**Do This:**
+
+*   Break logic out of the UI into testable business logic classes.
+*   Use dependency injection to provide mockable dependencies.
+*   Write both unit and widget tests
+
+**Don't Do This:**
+
+*   Having side-effects in the "build()" method.
+*   Unnecessary coupling between components.
+*   Failing to create tests.
+
+**Example:**
+
+"""dart
+// Good: A component with testable extracted logic.
+
+import 'package:flutter/material.dart';
+
+class Counter {
+  int _count = 0;
+
+  int get count => _count;
+
+  void increment() {
+    _count++;
+  }
+}
+
+class CounterWidget extends StatefulWidget {
+  final Counter counter; // Inject the counter
+
+  const CounterWidget({Key? key, required this.counter}) : super(key: key);
+
+  @override
+  _CounterWidgetState createState() => _CounterWidgetState();
+}
+
+class _CounterWidgetState extends State<CounterWidget> {
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text('Count: ${widget.counter.count}'),
+        ElevatedButton(
+          onPressed: () {
+            setState(() {
+              widget.counter.increment();
+            });
+          },
+          child: const Text('Increment'),
+        ),
+      ],
+    );
+  }
+}
+"""
+
+The "Counter" logic is extracted, making possible unit tests without any UI. The UI can also be widget-tested.
+
+### 1.5 Accessibility
+
+**Standard:** Components should be designed to be accessible to users with disabilities.
+
+*Why?*  Ensuring accessibility allows a wider range of users to interact with the application effectively.
+
+**Do This:**
+
+*   Use semantic labels for interactive elements.
+*   Provide alternative text for images.
+*   Ensure sufficient contrast between text and background colors.
+*   Use "Semantics" widget correctly.
+
+**Don't Do This:**
+
+*   Ignoring accessibility guidelines.
+*   Relying solely on visual cues.
+*   Using low contrast color schemes.
+
+**Example:**
+
+"""dart
+// Good: Accessible image with semantic label
+import 'package:flutter/material.dart';
+
+class AccessibleImage extends StatelessWidget {
+  final String imageUrl;
+  final String semanticLabel;
+
+  const AccessibleImage({Key? key, required this.imageUrl, required this.semanticLabel}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: semanticLabel,
+      child: Image.network(imageUrl),
+    );
+  }
+}
+"""
+
+## 2. Component Structure
+
+### 2.1 Atomic Design Principles
+
+**Standard:** Consider applying Atomic Design principles to structure larger applications/widget trees.
+
+*Why?*  Atomic Design organizes UI elements into atoms, molecules, organisms, templates, and pages, mirroring a chemical structure. This structured approach encourages reusability and consistency.
+
+**Do This:**
+
+*   Start with basic UI elements (atoms): buttons, labels, input fields.
+*   Combine atoms into molecules: a search bar (input + button).
+*   Group molecules into organisms: a header with navigation.
+
+**Example:**
+
+"""dart
+// Atom: A simple text label
+import 'package:flutter/material.dart';
+
+class Label extends StatelessWidget {
+  final String text;
+  const Label({Key? key, required this.text}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(text);
+  }
+}
+
+// Molecule: A search bar
+class SearchBar extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(child: TextField(decoration: InputDecoration(hintText: "Search"))),
+        IconButton(onPressed: (){}, icon: Icon(Icons.search))
+      ],
+    );
+  }
+}
+
+// Organism: A Header with Navigation
+class Header extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text("My App", style: TextStyle(fontSize: 24)),
+        SearchBar(),
+      ],
+    );
+  }
+}
+"""
+
+### 2.2 Component Directory Structure
+
+**Standard:**  Organize components into a clear and consistent directory structure.
+
+*Why?*  A well-defined directory structure improves code discoverability and maintainability.
+
+**Do This:**
+
+*   Create a dedicated "components" or "widgets" directory.
+*   Group related components into subdirectories.
+*   Follow a consistent naming convention for files and directories.
+
+**Example:**
+
+"""
+lib/
+├── components/
+│   ├── buttons/
+│   │   ├── custom_button.dart
+│   │   ├── icon_button.dart
+│   ├── text_fields/
+│   │   ├── custom_text_field.dart
+│   │   ├── search_bar.dart
+│   ├── cards/
+│   │   ├── product_card.dart
+"""
+
+### 2.3 State Management Considerations
+
+**Standard:**  Choose the correct state management solution for your component based on the component's complexity and scope.
+
+*Why?* Efficient state management is crucial for building reactive and performant Flutter applications.
+
+**Do This:**
+
+*   Use "setState" for simple, localized state changes within a single widget.
+*   Consider "Provider", "Riverpod", "Bloc/Cubit", or "GetX" for more complex state management needs.
+*   Use value notifiers effectively.
+
+**Example:**
+
+"""dart
+// Simple state management with setState
+import 'package:flutter/material.dart';
+
+class CounterWidget extends StatefulWidget {
+  @override
+  _CounterWidgetState createState() => _CounterWidgetState();
+}
+
+class _CounterWidgetState extends State<CounterWidget> {
+  int _counter = 0;
+
+  void _incrementCounter() {
+    setState(() {
+      _counter++;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: <Widget>[
+        Text(
+          'You have pushed the button this many times:',
+        ),
+        Text(
+          '$_counter',
+          style: Theme.of(context).textTheme.headlineMedium,
+        ),
+        ElevatedButton(
+          onPressed: _incrementCounter,
+          child: Text('Increment'),
+        ),
+      ],
+    );
+  }
+}
+"""
+
+## 3. Component Implementation
+
+### 3.1 Naming Conventions
+
+**Standard:** Adhere to consistent naming conventions for components.
+
+*Why?* Consistent naming makes code easier to read and understand.
+
+**Do This:**
+
+*   Use PascalCase for component class names (e.g., "CustomButton", "ProductCard").
+*   Use camelCase for variable and function names (e.g., "onPressed", "labelText").
+*   Use a descriptive prefix or suffix to clarify a component's purpose (e.g., "CustomButton", "TextFieldInput").
+
+### 3.2 Immutability
+
+**Standard:**  Make components immutable whenever possible by using "const" constructors.
+
+*Why?* Immutable widgets can be efficiently rebuilt by Flutter, contributing to smoother animations and better performance.
+
+**Example:**
+
+"""dart
+// Immutable widget with a const constructor
+import 'package:flutter/material.dart';
+
+class ImmutableLabel extends StatelessWidget {
+  final String text;
+
+  const ImmutableLabel({Key? key, required this.text}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(text);
+  }
+}
+
+// Usage
+const ImmutableLabel(text: 'This is an immutable label');
+"""
+
+### 3.3 Handling User Input
+
+**Standard:** Utilize "TextEditingController" for input fields, properly disposing of them when the widget is disposed.
+
+*Why?*  "TextEditingController" provides control over the text being edited in a "TextField". Ensuring proper disposal prevents memory leaks.
+
+**Example:**
+
+"""dart
+// Using TextEditingController and disposing it
+import 'package:flutter/material.dart';
+
+class MyTextField extends StatefulWidget {
+  @override
+  _MyTextFieldState createState() => _MyTextFieldState();
+}
+
+class _MyTextFieldState extends State<MyTextField> {
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: _controller,
+      decoration: InputDecoration(hintText: 'Enter text'),
+    );
+  }
+}
+"""
+
+### 3.4 Error Handling
+
+**Standard:**  Implement proper error handling within components to prevent crashes and improve user experience.
+
+*Why?*  Error handling ensures that unexpected errors are gracefully handled, preventing the application from crashing.
+
+**Do This:**
+
+*   Use "try-catch" blocks to handle exceptions.
+*   Display user-friendly error messages.
+*   Log errors for debugging purposes.
+
+**Example:**
+
+"""dart
+import 'package:flutter/material.dart';
+
+class DataFetcher extends StatefulWidget {
+  @override
+  _DataFetcherState createState() => _DataFetcherState();
+}
+
+class _DataFetcherState extends State<DataFetcher> {
+  String? _data;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchData();
+  }
+
+  Future<void> _fetchData() async {
+    try {
+      _data = await fetchDataFromApi(); // Assume this can throw an error
+      setState(() {
+        _error = null;
+      });
+    } catch (e) {
+      setState(() {
+        _error = 'Failed to load data: ${e.toString()}';
+        _data = null;
+      });
+      print('Error fetching data: $e');
+    }
+  }
+
+  Future<String> fetchDataFromApi() async {
+    // Simulate API call
+    await Future.delayed(Duration(seconds: 2));
+    // Simulate error
+    throw Exception('Failed to connect to API');
+    //return 'Data from API';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_error != null) {
+      return Text('Error: $_error');
+    } else if (_data != null) {
+      return Text('Data: $_data');
+    } else {
+      return CircularProgressIndicator();
+    }
+  }
+}
+"""
+
+### 3.5 Using "key"
+
+**Standard:**  Understanding the proper usage of "key".
+
+*Why?* Keys are fundamental to Flutter's widget lifecycle, and understanding their different types and purposes unlocks better control over state preservation and widget rebuilding.
+
+**Do This:**
+
+*   Use "ValueKey" when dealing with list item order changes.
+*   Understanding the use of "GlobalKey" and their purpose.
+*   Be careful: overuse of "GlobalKey" may indicate an underlying architectural problem.
+
+**Example:**
+
+"""dart
+// Using ValueKey for list item reordering
+import 'package:flutter/material.dart';
+
+class ReorderableList extends StatefulWidget {
+  @override
+  _ReorderableListState createState() => _ReorderableListState();
+}
+
+class _ReorderableListState extends State<ReorderableList> {
+  List<String> items = ['Item 1', 'Item 2', 'Item 3'];
+
+  @override
+  Widget build(BuildContext context) {
+    return ReorderableListView(
+      onReorder: (oldIndex, newIndex) {
+        setState(() {
+          if (oldIndex < newIndex) {
+            newIndex -= 1;
+          }
+          final String item = items.removeAt(oldIndex);
+          items.insert(newIndex, item);
+        });
+      },
+      children: <Widget>[
+        for (final item in items)
+          ListTile(
+            key: ValueKey<String>(item),
+            title: Text(item),
+          ),
+      ],
+    );
+  }
+}
+"""
+
+## 4. Testing Components
+
+### 4.1 Types of Tests
+
+**Standard:** Implement thorough testing strategies using Unit Tests, Widget Tests, and Integration Tests.
+*Why?* Helps ensure the software's correctness while bugs are easily fixable.
+
+**Do This:**
+
+*   Write **Unit Tests** to verify individual functions and classes.
+*   Create **Widget Tests** to test UI components.
+*   Don't forget **Integration Tests** for end-to-end flows.
+
+### 4.2 Mocking Dependencies
+
+**Standard:**  Use mocking to isolate components during testing.
+
+*Why?* Mocking allows you to control the behavior of dependencies, ensuring that tests are predictable and reliable.
+
+## 5. Modern Approaches and Patterns
+### 5.1 Functional Components
+
+**Standard:** While Flutter primarily uses widgets, consider using pure functions for stateless transformations of data within your component.
+
+*Why?*  Pure functions are easier to test and reason about because they have no side effects and always produce the same output for the same input.  This can improve code readability and maintainability.
+
+**Example:**
+
+"""dart
+// A pure function to format a price
+String formatPrice(double price) {
+  return '\$${price.toStringAsFixed(2)}';
+}
+
+class ProductCard extends StatelessWidget {
+  final double price;
+
+  const ProductCard({Key? key, required this.price}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Text('Price: ${formatPrice(price)}'), // Using the pure function
+      ),
+    );
+  }
+}
+"""
+
+### 5.2 Composition over Inheritance
+
+**Standard:**  Favor composition over inheritance for code reuse in Flutter components.
+
+*Why?* Composition promotes flexibility and reduces the risk of creating rigid and brittle class hierarchies.
+
+**Do This:**
+
+*   Create small, reusable components.
+*   Combine these components to build more complex UIs.
+*   Use mixins judiciously to share functionality across components.
+
+### 5.3 Using the "SafeArea" Widget
+**Standard:** Enclose content with "SafeArea" to avoid intrusions from device notches or status bars.
+*Why?* "SafeArea" ensures UI elements are visible and interactable on any supported platform/device.
+
+"""dart
+import 'package:flutter/material.dart';
+
+class MyScreen extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Text('Content within SafeArea'),
+        ),
+      ),
+    );
+  }
+}
+"""
+
+Adhering to these component design standards will help to build high-quality, maintainable, and performant Flutter applications. Remember to adapt these guidelines to your specific project requirements and encourage continuous learning and improvement within your development team.

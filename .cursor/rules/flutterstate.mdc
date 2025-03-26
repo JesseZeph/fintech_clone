@@ -1,0 +1,610 @@
+---
+description: State Management Standard For Flutter
+globs: .dart
+alwaysApply: false
+---
+# State Management Standards for Flutter
+
+This document outlines the coding standards for state management in Flutter applications. These standards aim to promote maintainability, scalability, testability, and performance. They are based on the latest Flutter best practices and are designed to be used by developers and AI coding assistants.
+
+## 1. Introduction to State Management in Flutter
+
+State management is a critical aspect of Flutter development. It involves managing the data that changes over time in an application and ensuring that the UI reflects these changes correctly. Choosing the right state management approach is crucial for building robust and maintainable Flutter apps. Flutter offers various approaches (Provider, Riverpod, BLoC/Cubit, GetX, etc.) and understanding their pros and cons is vital.
+
+### 1.1 Principles of Effective State Management
+
+*   **Separation of Concerns:** Decouple UI logic from business logic and data management.
+*   **Unidirectional Data Flow:** Data should flow in a single direction, making it easier to track changes and debug issues.
+*   **Immutability:** Prefer immutable data structures to prevent unexpected side effects and simplify state tracking.
+*   **Testability:** Design state management solutions that are easily testable, allowing for thorough unit and widget testing.
+*   **Performance:** Optimize state updates to minimize UI rebuilds and avoid performance bottlenecks.
+
+## 2. Choosing a State Management Solution
+
+Flutter offers several popular state management solutions. Each has its strengths and weaknesses, making them suitable for different use cases.
+
+### 2.1 Provider
+
+*   **Description:** A simple and lightweight dependency injection and state management solution built on "InheritedWidget". It's officially recommended by the Flutter team for simple to medium-sized applications.
+*   **Pros:**
+    *   Easy to learn and use.
+    *   Minimal boilerplate code.
+    *   Well-integrated with Flutter widgets.
+    *   Good for simple to medium complexity applications.
+*   **Cons:**
+    *   Can become complex as the application grows.
+    *   May require additional patterns for complex state logic (combining with ChangeNotifier, for example).
+*   **When to Use:** Small to medium-sized apps, prototypes, or when you need a simple solution.
+
+### 2.2 Riverpod
+
+*   **Description:** A reactive state-management framework. Fully type-safe alternative to Provider. Can be used to refactor existing Provider-based app.
+*   **Pros:**
+    *   Compile-time safety (type-safe).
+    *   More powerful and flexible composition than Provider.
+    *   Testable.
+    *   Easier to debug than Provider.
+*   **Cons:**
+    *   Slightly steeper learning curve compared to Provider.
+    *   More verbose than Provider.
+*   **When to Use:** Medium to large-sized applications with a focus on type safety and testability, and an improved developer experience
+
+### 2.3 BLoC/Cubit
+
+*   **Description:** Architectures using Business Logic Components (BLoC) or Cubits separate the presentation layer from the business logic. BLoC uses streams and events, whereas Cubit uses simpler synchronous methods to emit states.
+*   **Pros:**
+    *   Excellent separation of concerns.
+    *   Highly testable.
+    *   Suitable for complex business logic.
+    *   Clear unidirectional data flow.
+*   **Cons:**
+    *   More boilerplate code compared to Provider.
+    *   Steeper learning curve.
+*   **When to Use:** Large-scale applications with complex business logic and a need for strong separation of concerns.
+
+### 2.4 GetX
+
+*   **Description:** A microframework that provides state management, dependency injection, and route management.
+*   **Pros:**
+    *   All-in-one solution.
+    *   Minimal boilerplate code.
+    *   Easy to learn and use.
+*   **Cons:**
+    *   Can lead to tight coupling if not used carefully.
+    *   Less control over individual components.
+*   **When to Use:** Rapid prototyping, small to medium-sized apps where strict architecture isn't critical.
+
+### 2.5 ValueNotifier / ValueListenableBuilder
+
+*   **Description:** A simple way to manage single values that need to trigger UI updates. "ValueNotifier" holds a single value, and "ValueListenableBuilder" rebuilds when that value changes.
+*   **Pros:**
+    *   Very lightweight and simple to use.
+    *   Minimal boilerplate.
+*   **Cons:**
+    *   Only suitable for managing a single value.
+    *   Not appropriate for complex state.
+*   **When to Use:** Simple UI elements that depend on a single, easily managed value (e.g., a counter, a toggle).
+
+### 2.6 setState (Avoid when possible, but understand it)
+
+*   **Description:** The most basic form of state management in Flutter. Calling "setState" triggers a rebuild of the widget.
+*   **Pros:**
+    *   Simple and easy to understand.
+    *   Built into Flutter.
+*   **Cons:**
+    *   Inefficient for large or complex widgets.
+    *   Can lead to performance issues if overused.
+    *   Doesn't encourage separation of concerns.
+*   **When to Use:** Very simple UI elements or quick prototyping.  Avoid for production applications with any complexity.  Understand how it works so you can recognize when it's being misused.
+*   **Alternatives:** Refactor to one of the other state management techniques listed above when "setState" usage becomes complex or performance becomes a bottleneck.
+
+### 2.7 Recommendation
+
+For most applications, **Riverpod** offers the best balance of power, type safety, and maintainability.  **Provider** is a reasonable alternative for less complex apps or teams already familiar with it.  Avoid "setState" except for the simplest cases. Carefully consider the trade-offs of **GetX** before using it in a large project.  BLoC is a good alternative if you need to strictly enforce layer separation and unidirectional data flow.
+
+## 3. Coding Standards for Provider
+
+### 3.1 Do This: Use "ChangeNotifierProvider" for Mutable State
+
+Use "ChangeNotifierProvider" to provide a "ChangeNotifier" instance to the widget tree.
+
+"""dart
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+class Counter extends ChangeNotifier {
+  int _count = 0;
+
+  int get count => _count;
+
+  void increment() {
+    _count++;
+    notifyListeners();
+  }
+}
+
+class CounterScreen extends StatelessWidget {
+  const CounterScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (context) => Counter(),
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Counter')),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('You have pushed the button this many times:'),
+              Consumer<Counter>(
+                builder: (context, counter, child) => Text(
+                  '${counter.count}',
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
+              ),
+            ],
+          ),
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: () => Provider.of<Counter>(context, listen: false).increment(),
+          tooltip: 'Increment',
+          child: const Icon(Icons.add),
+        ),
+      ),
+    );
+  }
+}
+"""
+
+*   **Why:** "ChangeNotifier" makes it easy to manage mutable state and notify listeners when the state changes.  "ChangeNotifierProvider" links this to the widget hierarchy.
+
+### 3.2 Do This: Use "Consumer" or "Selector" for Widget Rebuilds
+
+Use "Consumer" or "Selector" to limit widget rebuilds to only the parts of the UI that depend on the state.
+
+"""dart
+Consumer<Counter>(
+  builder: (context, counter, child) => Text(
+    '${counter.count}',
+    style: Theme.of(context).textTheme.headlineMedium,
+  ),
+)
+"""
+
+Or:
+
+"""dart
+Selector<Counter, int>(
+  selector: (context, counter) => counter.count,
+  builder: (context, count, child) => Text(
+    '$count',
+    style: Theme.of(context).textTheme.headlineMedium,
+  ),
+)
+"""
+
+*   **Why:** "Consumer" and "Selector" prevent unnecessary widget rebuilds, improving performance.  "Selector" provides even finer-grained control by only rebuilding when the selected value changes.
+
+### 3.3 Don't Do This: Calling "notifyListeners" Excessively
+
+Avoid calling "notifyListeners" too often, as it can trigger unnecessary UI rebuilds. Batch state updates where possible.
+
+"""dart
+class Counter extends ChangeNotifier {
+  int _count = 0;
+
+  int get count => _count;
+
+  // BAD: Calling notifyListeners after each increment
+  void incrementMultiple() {
+    _count++;
+    notifyListeners(); // Avoid this pattern
+
+    _count++;
+    notifyListeners(); // Avoid this pattern
+  }
+
+  // GOOD: Batch updates and call notifyListeners once
+  void incrementMultipleGood() {
+    _count += 2;
+    notifyListeners(); // This is the preferred pattern.
+  }
+}
+"""
+
+*   **Why:** Excessive calls to "notifyListeners" can degrade performance. Batching updates reduces rebuilds.
+
+### 3.4 Do This: Use "Provider.of<T>(context, listen: false)" for Non-Rebuilding Access
+
+When you only need to access the state and don't need the widget to rebuild, use "Provider.of<T>(context, listen: false)".
+
+"""dart
+FloatingActionButton(
+  onPressed: () => Provider.of<Counter>(context, listen: false).increment(),
+  tooltip: 'Increment',
+  child: const Icon(Icons.add),
+)
+"""
+
+*   **Why:** Prevents unnecessary widget rebuilds when only accessing the state.
+
+## 4. Coding Standards for Riverpod
+
+### 4.1 Do This: Use "StateProvider", "ChangeNotifierProvider", "FutureProvider", and "StreamProvider"
+
+Select the provider type that matches the kind of data you are exposing.  "StateProvider" for simple state, "ChangeNotifierProvider" for mutable state with notifications, "FutureProvider" for asynchronous data that only needs to be loaded once, and "StreamProvider" for streaming data.
+
+"""dart
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+// StateProvider: Simple state
+final counterProvider = StateProvider((ref) => 0);
+
+// ChangeNotifierProvider: Mutable state with notifications
+class Counter extends ChangeNotifier {
+  int _count = 0;
+
+  int get count => _count;
+
+  void increment() {
+    _count++;
+    notifyListeners();
+  }
+}
+
+final counterChangeNotifierProvider = ChangeNotifierProvider((ref) => Counter());
+
+// FutureProvider: Asynchronous data that should only be loaded once.
+final someDataProvider = FutureProvider((ref) async {
+  // Simulate fetching data from an API
+  await Future.delayed(const Duration(seconds: 2));
+  return "Data loaded successfully!";
+});
+
+// StreamProvider: Streaming data
+final clockProvider = StreamProvider((ref) {
+  return Stream.periodic(const Duration(seconds: 1), (computationCount) => DateTime.now());
+});
+
+"""
+
+*   **Why:** Riverpod's providers handle different state management scenarios in a typesafe manner.  Choosing the right provider ensures correct and efficient state management.
+
+### 4.2 Do This: Use "ConsumerWidget" or "HookConsumer" for accessing providers in widgets.
+
+Use "ConsumerWidget" (or "HookConsumer" if using "flutter_hooks") to easily access providers using the "WidgetRef" parameter passed to the "build" method.
+
+"""dart
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+class MyWidget extends ConsumerWidget {
+  const MyWidget({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final counter = ref.watch(counterProvider);
+    final someData = ref.watch(someDataProvider);
+    return Scaffold(
+      appBar: AppBar(title: const Text('Riverpod Example')),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('Counter value: $counter'),
+            switch (someData) {
+              AsyncData(:final value) => Text('Data: $value'),
+              AsyncError(:final error) => Text('Error: $error'),
+              _ => const CircularProgressIndicator(),
+            },
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => ref.read(counterProvider.notifier).state++,
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+}
+"""
+
+*   **Why:** "ConsumerWidget" provides a clean and concise way to interact with Riverpod providers.  "ref.watch" rebuilds the widget when the provider's value changes.
+
+### 4.3 Do This:  Use "ref.read" for one-time access to a provider's value.
+
+Use "ref.read" when you only need to access the provider once (e.g. inside an event handler) and you don't want the widget to rebuild when the provider's value changes. In the code block above regarding "ConsumerWidget", see the on pressed function of the "FloatingActionButton".
+
+*   **Why:** Prevents unnecessary rebuilds by only accessing the state when needed.
+
+### 4.4 Don't Do This: Mixing Provider and Riverpod
+
+Avoid using Provider and Riverpod in the same widget tree unless you're deliberately migrating from Provider to Riverpod.
+
+*   **Why:** Mixing state management solutions can lead to confusion and unexpected behavior.
+
+### **4.5 Do This:** Use "family" to parameterize Providers
+
+Use "family" to create provider factories, passing parameters to customize their behavior.
+
+"""dart
+final userProvider = FutureProvider.family<User, int>((ref, userId) async {
+  // Simulate fetching user data
+  await Future.delayed(Duration(seconds: 1));
+  return User(id: userId, name: 'User $userId');
+});
+
+class User {
+  final int id;
+  final String name;
+
+  User({required this.id, required this.name});
+}
+
+class UserProfile extends ConsumerWidget {
+  final int userId;
+
+  const UserProfile({Key? key, required this.userId}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(userProvider(userId));
+
+    return switch (user) {
+      AsyncData(:final value) => Text('User: ${value.name}'),
+      AsyncError(:final error) => Text('Error: $error'),
+      _ => const CircularProgressIndicator(),
+    };
+  }
+}
+"""
+
+*   **Why:**  Parameterized providers make components reusable and configurable with specific arguments.
+
+## 5. Coding Standards for BLoC/Cubit
+
+### 5.1 Do This: Separate Events, States, and the BLoC/Cubit
+
+Create separate classes for events, states, and the BLoC/Cubit itself.
+
+"""dart
+// Events
+abstract class CounterEvent {}
+
+class IncrementEvent extends CounterEvent {}
+
+// States
+abstract class CounterState {}
+
+class CounterInitial extends CounterState {
+  CounterInitial();
+}
+
+class CounterUpdated extends CounterState {
+  final int count;
+
+  CounterUpdated(this.count);
+}
+
+// Cubit
+import 'package:flutter_bloc/flutter_bloc.dart';
+
+class CounterCubit extends Cubit<CounterState> {
+  int counter = 0;
+  CounterCubit() : super(CounterInitial());
+
+  void increment() {
+    counter++;
+    emit(CounterUpdated(counter));
+  }
+}
+"""
+
+*   **Why:** Enforces a clear separation of concerns, making the code more organized and maintainable. If using BLoC, also create Event classes.
+
+### 5.2 Do This: Use "BlocProvider" to Provide the BLoC/Cubit
+
+Use "BlocProvider" to provide the BLoC/Cubit to the widget tree.
+
+"""dart
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+
+class CounterScreen extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) => CounterCubit(),
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Counter')),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text('You have pushed the button this many times:'),
+              BlocBuilder<CounterCubit, CounterState>(
+                builder: (context, state) {
+                  if (state is CounterUpdated) {
+                    return Text(
+                      '${state.count}',
+                      style: Theme.of(context).textTheme.headlineMedium,
+                    );
+                  }
+                  return const Text('0');
+                },
+              ),
+            ],
+          ),
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: () => BlocProvider.of<CounterCubit>(context).increment(),
+          tooltip: 'Increment',
+          child: const Icon(Icons.add),
+        ),
+      ),
+    );
+  }
+}
+
+"""
+
+*   **Why:** Integrates the BLoC/Cubit into the widget tree, making it accessible to descendant widgets.
+
+### 5.3 Do This: Use "BlocBuilder" or "BlocListener" for UI Updates
+
+Use "BlocBuilder" to rebuild widgets based on state changes or "BlocListener" to perform side effects based on state changes (e.g., navigation, showing a snackbar).
+
+"""dart
+BlocBuilder<CounterCubit, CounterState>(
+  builder: (context, state) {
+    if (state is CounterUpdated) {
+      return Text(
+        '${state.count}',
+        style: Theme.of(context).textTheme.headlineMedium,
+      );
+    }
+    return const Text('0');
+  },
+)
+"""
+
+*   **Why:** "BlocBuilder" and "BlocListener" provide a granular way to update the UI based on state changes, improving performance.
+
+### 5.4 Don't Do This: Performing Business Logic in the UI
+
+Avoid performing business logic directly in the UI.  Delegate business logic to the BLoC/Cubit.
+
+*   **Why:** Violates separation of concerns and makes the UI harder to test and maintain.
+
+### 5.5 Do This:  Proper Error Handling Within BLoC/Cubit
+
+Implement proper error handling within the BLoC/Cubit, emitting error states to notify the UI of any errors.
+
+"""dart
+//State
+class CounterError extends CounterState {
+  final String errorMessage;
+  CounterError(this.errorMessage);
+}
+//Cubit
+class CounterCubit extends Cubit<CounterState> {
+  int counter = 0;
+  CounterCubit() : super(CounterInitial());
+
+  void increment() {
+    try {
+      // Simulate an error
+      if (counter > 5) {
+        throw Exception('Counter cannot exceed 5');
+      }
+      counter++;
+      emit(CounterUpdated(counter));
+    } catch (e) {
+      emit(CounterError(e.toString()));
+    }
+  }
+}
+
+//UI
+BlocBuilder<CounterCubit, CounterState>(
+  builder: (context, state) {
+    if (state is CounterUpdated) {
+      return Text(
+        '${state.count}',
+        style: Theme.of(context).textTheme.headlineMedium,
+      );
+    }
+    if (state is CounterError) {
+      return Text(
+        'Error: ${state.errorMessage}',
+        style: TextStyle(color: Colors.red),
+      );
+    }
+    return const Text('0');
+  },
+)
+"""
+
+*   **Why:**  Provides a robust and maintainable way to handle errors and display them in the UI.
+
+## 6. General State Management Standards
+
+### 6.1 Do This: Use Immutable Data Structures
+
+Prefer immutable data structures wherever possible.  Use "const", "final", and libraries like "freezed" or "built_value" to enforce immutability.
+
+"""dart
+import 'package:freezed_annotation/freezed_annotation.dart';
+
+part 'user.freezed.dart';
+
+@freezed
+class User with _$User {
+  const factory User({
+    required String id,
+    required String name,
+    required int age,
+  }) = _User;
+}
+"""
+
+*   **Why:** Immutability prevents unexpected side effects and simplifies state tracking. "freezed" (or "built_value") generate boilerplate for immutable classes.
+
+### 6.2 Do This: Document State Management Logic
+
+Document the state management logic, including the purpose of each state, event, and the transitions between them with clear comments or docstrings.
+
+*   **Why:** Improves code understanding and maintainability, especially in complex applications.
+
+### 6.3 Do This: Write Unit Tests for State Logic
+
+Write thorough unit tests for the state management logic (ChangeNotifiers, BLoCs/Cubits, Riverpod providers).  Use mocking frameworks like "mockito" to isolate dependencies.
+
+*   **Why:** Ensures the correctness and reliability of the state management logic, reducing bugs and improving stability.
+
+### 6.4 Don't Do This: Mutating State Directly
+
+Avoid directly mutating state.  Always create new instances of state objects to trigger UI updates.
+
+"""dart
+// BAD: Direct state mutation
+class Counter extends ChangeNotifier {
+  int _count = 0;
+
+  int get count => _count;
+
+  void increment() {
+    _count++; // Direct mutation -- AVOID
+    notifyListeners();
+  }
+}
+
+// GOOD: Creating a new state
+class Counter extends ChangeNotifier {
+  int _count = 0;
+
+  int get count => _count;
+
+  void increment() {
+    // Creating new state
+    _count = _count + 1;
+    notifyListeners();
+  }
+}
+
+"""
+
+*   **Why:** Direct mutation can lead to unexpected side effects and missed UI updates. Creating new instances ensures that Flutter recognizes the state change. Directly mutating data inside of a Riverpod provider invalidates the provider state, causing widgets that depend on the provider to not rebuild.
+
+### 6.5 Do this: Design for Error handling
+
+Always consider error handling in your design. Wrap relevant processes into a try catch block and emit relevant error states or display relevant error messages.
+
+### 6.6 Do this: Only rebuild where necessary
+
+Ensure to only rebuild widgets where necessary to optimise performance for your applications and make them responsive.
+
+## 7. Conclusion
+
+Following these state management standards will help you build robust, maintainable, and performant Flutter applications. By choosing the right state management solution for your project's needs and adhering to these guidelines, you can create a codebase that is easy to understand, test, and evolve over time.

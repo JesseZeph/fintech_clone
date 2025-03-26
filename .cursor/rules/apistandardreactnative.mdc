@@ -1,0 +1,956 @@
+---
+description: API Integration Standards for React Native
+globs: .tsx
+alwaysApply: false
+---
+# API Integration Standards for React Native
+
+This document outlines the coding standards and best practices for API integration in React Native applications. It aims to provide a comprehensive guide for developers to write maintainable, efficient, and secure code when interacting with backend services and external APIs. It covers modern approaches, design patterns, and the latest React Native features to ensure code quality and consistency.
+
+## 1. Architectural Considerations
+
+### 1.1. Decoupling API Logic
+
+**Standard:** Separate API interaction concerns from UI components to promote reusability and testability.
+
+*   **Do This:** Use a dedicated service or repository layer for API calls.
+*   **Don't Do This:** Directly make API calls within React components.
+
+**Why:** Decoupling makes components easier to test and reuse. It also simplifies debugging and allows for easier modifications to the API layer without affecting the UI.
+
+"""javascript
+// Good: API service layer
+import axios from 'axios';
+
+const API_BASE_URL = 'https://api.example.com';
+
+const ApiService = {
+    get: async (endpoint, params = {}) => {
+        try {
+            const response = await axios.get("${API_BASE_URL}/${endpoint}", { params });
+            return response.data;
+        } catch (error) {
+            console.error('API GET error:', error);
+            throw error; // Re-throw the error for handling in the component
+        }
+    },
+
+    post: async (endpoint, data = {}) => {
+        try {
+            const response = await axios.post("${API_BASE_URL}/${endpoint}", data);
+            return response.data;
+        } catch (error) {
+            console.error('API POST error:', error);
+            throw error; // Re-throw the error for handling in the component
+        }
+    },
+
+    put: async (endpoint, data = {}) => {
+        try {
+            const response = await axios.put("${API_BASE_URL}/${endpoint}", data);
+            return response.data;
+        } catch (error) {
+            console.error('API PUT error:', error);
+            throw error; // Re-throw the error for handling in the component
+        }
+    },
+
+    delete: async (endpoint) => {
+        try {
+            const response = await axios.delete("${API_BASE_URL}/${endpoint}");
+            return response.data;
+        } catch (error) {
+            console.error('API DELETE error:', error);
+            throw error; // Re-throw the error for handling in the component
+        }
+    }
+};
+
+export default ApiService;
+
+// Example Usage in a component
+import React, { useState, useEffect } from 'react';
+import { View, Text, ActivityIndicator } from 'react-native';
+import ApiService from './ApiService';
+
+const MyComponent = () => {
+    const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const result = await ApiService.get('data');
+                setData(result);
+                setLoading(false);
+            } catch (err) {
+                setError(err.message || 'An error occurred');
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+    }, []);
+
+    if (loading) {
+        return <ActivityIndicator size="large" />;
+    }
+
+    if (error) {
+        return <Text>Error: {error}</Text>;
+    }
+
+    return (
+        <View>
+            <Text>Data: {data ? JSON.stringify(data) : 'No data'}</Text>
+        </View>
+    );
+};
+
+export default MyComponent;
+"""
+
+### 1.2. Centralized Error Handling
+
+**Standard:** Implement a centralized error handling mechanism to manage API errors consistently.
+
+*   **Do This:** Create custom error classes and a global error handler.
+*   **Don't Do This:** Handle errors directly within individual API calls in components without a unified approach.
+
+**Why:** Centralized error handling provides a consistent user experience and simplifies debugging.
+
+"""javascript
+// Custom error class
+class ApiError extends Error {
+  constructor(message, statusCode) {
+    super(message);
+    this.name = 'ApiError';
+    this.statusCode = statusCode;
+  }
+}
+
+// API service with error handling
+const ApiService = {
+    get: async (endpoint, params = {}) => {
+        try {
+            const response = await axios.get("${API_BASE_URL}/${endpoint}", { params });
+            if (response.status >= 400) {
+                throw new ApiError("Request failed with status ${response.status}", response.status);
+            }
+            return response.data;
+        } catch (error) {
+            console.error('API GET error:', error);
+            if (error instanceof ApiError) {
+                // Handle known API errors
+                throw error;
+            } else {
+                // Wrap unexpected errors
+                throw new ApiError('An unexpected error occurred', 500);
+            }
+        }
+    }
+};
+
+// Global error handler (example)
+const handleApiError = (error) => {
+    if (error instanceof ApiError) {
+        // Log the error, display a user-friendly message, or take other actions
+        console.error('API Error:', error.message, error.statusCode);
+        // Example: Display an alert to the user
+        Alert.alert('API Error', error.message);
+    } else {
+        // Handle other types of errors (e.g., network errors)
+        console.error('Unexpected Error:', error);
+        Alert.alert('Error', 'An unexpected error occurred. Please try again later.');
+    }
+};
+
+
+// Usage in a component
+import React, { useState, useEffect } from 'react';
+import { View, Text, ActivityIndicator, Alert } from 'react-native';
+import ApiService from './ApiService';
+
+const MyComponent = () => {
+    const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const result = await ApiService.get('data');
+                setData(result);
+                setLoading(false);
+            } catch (err) {
+                setError(err);
+                handleApiError(err); // Use the global error handler
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+    }, []);
+
+    if (loading) {
+        return <ActivityIndicator size="large" />;
+    }
+
+    if (error) {
+        return <Text>Error: {error.message || 'An error occurred'}</Text>;
+    }
+
+    return (
+        <View>
+            <Text>Data: {data ? JSON.stringify(data) : 'No data'}</Text>
+        </View>
+    );
+};
+
+export default MyComponent;
+"""
+
+### 1.3. Data Transformation
+
+**Standard:** Transform API responses into a format suitable for the application's UI and data models.
+
+*   **Do This:** Use a transformation function or layer between the API service and the UI.
+*   **Don't Do This:** Directly use API responses in UI without validation or transformation.
+
+**Why:** Data transformation isolates the UI from API changes and ensures data consistency across the application.
+
+"""javascript
+// API service
+const ApiService = {
+    getUsers: async () => {
+        const response = await axios.get("${API_BASE_URL}/users");
+        return response.data;
+    }
+};
+
+// Data transformation function
+const transformUser = (user) => ({
+    id: user.id,
+    fullName: "${user.firstName} ${user.lastName}",
+    email: user.email,
+});
+
+// Usage in component
+import React, { useState, useEffect } from 'react';
+import { View, Text } from 'react-native';
+import ApiService from './ApiService';
+
+const UserList = () => {
+    const [users, setUsers] = useState([]);
+
+    useEffect(() => {
+        const fetchUsers = async () => {
+            const apiUsers = await ApiService.getUsers();
+            const transformedUsers = apiUsers.map(transformUser);
+            setUsers(transformedUsers);
+        };
+
+        fetchUsers();
+    }, []);
+
+    return (
+        <View>
+            {users.map((user) => (
+                <Text key={user.id}>{user.fullName} - {user.email}</Text>
+            ))}
+        </View>
+    );
+};
+
+export default UserList;
+"""
+
+## 2. HTTP Client Selection and Configuration
+
+### 2.1. Choosing the Right HTTP Client
+
+**Standard:** Use "axios" or the built-in "fetch" API for making HTTP requests.
+
+*   **Do This:** Evaluate "axios" and "fetch" based on project requirements (e.g., interceptors, cancellation). "axios" is generally preferred for its ease of use and features, but "fetch" is a lightweight alternative if those are not needed.
+*   **Don't Do This:** Rely on deprecated or less-maintained HTTP clients.
+
+**Why:** Modern HTTP clients offer better features, performance, and security compared to older libraries.  "axios" provides automatic JSON transformation, request cancellation, and interceptors.
+
+### 2.2. Configuring Timeout and Retries
+
+**Standard:** Set appropriate timeouts and implement retry mechanisms to handle network issues.
+
+*   **Do This:** Configure timeouts to prevent indefinite waiting and use retry strategies for transient errors.
+*   **Don't Do This:** Use default timeout settings or ignore network errors.
+
+"""javascript
+// Axios with timeout and retry
+import axios from 'axios';
+
+const API_BASE_URL = 'https://api.example.com';
+
+const axiosInstance = axios.create({
+    baseURL: API_BASE_URL,
+    timeout: 5000, // 5 seconds timeout
+});
+
+axiosInstance.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+        const originalRequest = error.config;
+        if (error.code === 'ECONNABORTED' && !originalRequest._retry) {
+            originalRequest._retry = true;
+            console.log('Retrying request...');
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retrying
+            return axiosInstance(originalRequest);
+        }
+        return Promise.reject(error);
+    }
+);
+
+
+const ApiService = {
+    get: async (endpoint, params = {}) => {
+        try {
+            const response = await axiosInstance.get(endpoint, { params });
+            return response.data;
+        } catch (error) {
+            console.error('API GET error:', error);
+            throw error; // Re-throw the error for handling in the component
+        }
+    }
+};
+
+export default ApiService;
+"""
+
+### 2.3. Handling Request Cancellation
+
+**Standard:** Implement request cancellation when the component unmounts or the user initiates a new action.
+
+*   **Do This:** Use "AbortController" with "fetch" or cancellation tokens with "axios".
+*   **Don't Do This:** Leave requests running in the background, which can lead to memory leaks and unexpected behavior.
+
+"""javascript
+// Fetch with AbortController
+import React, { useState, useEffect } from 'react';
+import { View, Text } from 'react-native';
+
+const MyComponent = () => {
+    const [data, setData] = useState(null);
+
+    useEffect(() => {
+        const abortController = new AbortController();
+        const signal = abortController.signal;
+
+        const fetchData = async () => {
+            try {
+                const response = await fetch('https://api.example.com/data', { signal });
+                const result = await response.json();
+                setData(result);
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    console.log('Fetch aborted');
+                } else {
+                    console.error('Fetch error:', error);
+                }
+            }
+        };
+
+        fetchData();
+
+        return () => {
+            abortController.abort(); // Cancel the request on unmount
+        };
+    }, []);
+
+    return (
+        <View>
+            <Text>Data: {data ? JSON.stringify(data) : 'Loading...'}</Text>
+        </View>
+    );
+};
+
+export default MyComponent;
+"""
+
+## 3. Authentication and Authorization
+
+### 3.1. Securely Storing Authentication Tokens
+
+**Standard:** Store authentication tokens securely using "react-native-keychain" or "AsyncStorage".
+
+*   **Do This:** Use Keychain for sensitive data and "AsyncStorage" for less sensitive data. Encrypt tokens before storing them.
+*   **Don't Do This:** Store tokens in plain text in memory or local storage.
+
+**Why:** Secure storage prevents unauthorized access to authentication tokens. "react-native-keychain" provides native-level security for iOS and Android.
+
+"""javascript
+// Secure storage using react-native-keychain
+import * as Keychain from 'react-native-keychain';
+
+const storeCredentials = async (username, password) => {
+  try {
+    await Keychain.setGenericPassword(username, password);
+    console.log('Credentials stored securely');
+  } catch (error) {
+    console.error('Keychain storage error:', error);
+  }
+};
+
+const retrieveCredentials = async () => {
+  try {
+    const credentials = await Keychain.getGenericPassword();
+    if (credentials) {
+      console.log('Credentials retrieved successfully');
+      return credentials;
+    } else {
+      console.log('No credentials stored');
+      return null;
+    }
+  } catch (error) {
+    console.error('Keychain retrieval error:', error);
+    return null;
+  }
+};
+
+const deleteCredentials = async () => {
+    try {
+        await Keychain.resetGenericPassword();
+        console.log('Credentials deleted successfully');
+    } catch (error) {
+        console.error('Keychain deletion error:', error);
+    }
+};
+
+// Usage example (login)
+const login = async (username, password) => {
+    try {
+        const response = await ApiService.post('login', { username, password });
+        const { token } = response;
+
+        await storeCredentials(username, token); // Store the token securely
+
+        // Further actions after successful login
+    } catch (error) {
+        console.error('Login failed:', error);
+    }
+};
+
+// Usage example (retrieve token)
+const getToken = async () => {
+    const credentials = await retrieveCredentials();
+    if (credentials) {
+        return credentials.password; // Return the token
+    }
+    return null;
+};
+"""
+
+### 3.2. Implementing Refresh Tokens
+
+**Standard:** Use refresh tokens to obtain new access tokens without requiring the user to re-authenticate.
+
+*   **Do This:** Implement a refresh token flow that handles token expiration gracefully.
+*   **Don't Do This:** Rely solely on long-lived access tokens.
+
+**Why:** Refresh tokens enhance security and user experience by minimizing the need for frequent re-authentication.
+
+"""javascript
+// Axios interceptor for token refresh
+axiosInstance.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+        const originalRequest = error.config;
+        if (error.response?.status === 401 && !originalRequest._retry) {
+            originalRequest._retry = true;
+            try {
+                const refreshToken = await retrieveRefreshToken();
+                if (!refreshToken) {
+                    // Redirect to login if no refresh token is available
+                    return Promise.reject(error);
+                }
+                const refreshResponse = await axios.post('/refresh', { refreshToken });
+                const { newAccessToken, newRefreshToken } = refreshResponse.data;
+
+                await storeCredentials('username', newAccessToken);
+                await storeRefreshToken(newRefreshToken);
+
+                axiosInstance.defaults.headers.common['Authorization'] = "Bearer ${newAccessToken}";
+                originalRequest.headers['Authorization'] = "Bearer ${newAccessToken}";
+
+                return axiosInstance(originalRequest);
+            } catch (refreshError) {
+                // Redirect to login if refresh fails
+                return Promise.reject(refreshError);
+            }
+        }
+        return Promise.reject(error);
+    }
+);
+
+const storeRefreshToken = async (refreshToken) => {
+  try {
+      await AsyncStorage.setItem('refreshToken', refreshToken);
+  } catch (error) {
+      console.error('Error storing refresh token:', error);
+  }
+};
+
+const retrieveRefreshToken = async () => {
+    try {
+        const refreshToken = await AsyncStorage.getItem('refreshToken');
+        return refreshToken;
+    } catch (error) {
+        console.error('Error retrieving refresh token:', error);
+        return null;
+    }
+};
+"""
+
+### 3.3. Securing API Keys
+
+**Standard:** Protect API keys from exposure by using environment variables and secure storage.
+
+*   **Do This:** Store API keys in ".env" files during development and use native secrets management in production.
+*   **Don't Do This:** Hardcode API keys directly in the source code.
+
+**Why:** API keys are sensitive and should be protected to prevent abuse and unauthorized access.
+
+"""javascript
+// Using environment variables
+import { API_KEY } from '@env';
+
+const ApiService = {
+    getData: async () => {
+        const response = await axios.get("${API_BASE_URL}/data?apiKey=${API_KEY}");
+        return response.data;
+    }
+};
+"""
+
+## 4. Data Handling and State Management
+
+### 4.1. Optimistic Updates
+
+**Standard:** Implement optimistic updates for UI responsiveness.
+
+*   **Do This:** Update the UI immediately after a request is initiated and revert the update if the request fails.
+*   **Don't Do This:** Wait for the server response before updating the UI.
+
+**Why:** Optimistic updates provide a smoother user experience by making the UI feel more responsive.
+
+"""javascript
+import React, { useState } from 'react';
+import { View, Text, Button } from 'react-native';
+import ApiService from './ApiService';
+
+const LikeButton = ({ postId, initialLikes }) => {
+    const [likes, setLikes] = useState(initialLikes);
+    const [isLiked, setIsLiked] = useState(false);
+
+    const handleLike = async () => {
+        const previousLikes = likes;
+        const newLikes = isLiked ? likes - 1 : likes + 1;
+
+        // Optimistic update
+        setLikes(newLikes);
+        setIsLiked(!isLiked);
+
+        try {
+            await ApiService.post("posts/${postId}/like", { liked: !isLiked });
+        } catch (error) {
+            // Revert update on error
+            setLikes(previousLikes);
+            setIsLiked(isLiked);
+            console.error('Failed to update likes:', error);
+        }
+    };
+
+    return (
+        <View>
+            <Text>Likes: {likes}</Text>
+            <Button title={isLiked ? 'Unlike' : 'Like'} onPress={handleLike} />
+        </View>
+    );
+};
+
+export default LikeButton;
+
+"""
+
+### 4.2. Pagination
+
+**Standard:** Implement pagination for displaying large datasets.
+
+*   **Do This:** Use server-side pagination to retrieve data in chunks and implement infinite scrolling or load more buttons.
+*   **Don't Do This:** Load entire datasets at once, which can cause performance issues.
+
+"""javascript
+import React, { useState, useEffect } from 'react';
+import { View, Text, FlatList, Button, ActivityIndicator } from 'react-native';
+import ApiService from './ApiService';
+
+const ItemList = () => {
+    const [items, setItems] = useState([]);
+    const [page, setPage] = useState(1);
+    const [loading, setLoading] = useState(false);
+    const [hasMore, setHasMore] = useState(true);
+
+    const fetchItems = async () => {
+        if (loading || !hasMore) return;
+        setLoading(true);
+
+        try {
+            const response = await ApiService.get("items?page=${page}&limit=10");
+            if (response.length === 0) {
+                setHasMore(false);
+            } else {
+                setItems((prevItems) => [...prevItems, ...response]);
+                setPage((prevPage) => prevPage + 1);
+            }
+        } catch (error) {
+            console.error('Failed to fetch items:', error);
+            setHasMore(false);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchItems();
+    }, []);
+
+    const renderItem = ({ item }) => (
+        <View>
+            <Text>{item.name}</Text>
+        </View>
+    );
+
+    const loadMore = () => {
+        fetchItems();
+    };
+
+    const renderFooter = () => (
+        loading ? (
+            <ActivityIndicator size="small" />
+        ) : hasMore ? (
+            <Button title="Load More" onPress={loadMore} />
+        ) : null
+    );
+
+    return (
+        <FlatList
+            data={items}
+            renderItem={renderItem}
+            keyExtractor={(item) => item.id.toString()}
+            ListFooterComponent={renderFooter}
+            onEndReached={loadMore}
+            onEndReachedThreshold={0.5}
+        />
+    );
+};
+
+export default ItemList;
+"""
+
+### 4.3. Using State Management Libraries
+
+**Standard:** Use state management libraries like Redux, Zustand, or Context API for complex state management.
+
+*   **Do This:** Choose a state management solution based on project complexity and team familiarity.
+*   **Don't Do This:** Use local component state for data that needs to be shared across multiple components.
+
+**Why:** State management libraries simplify data sharing and ensure data consistency across the application.
+
+"""javascript
+// Redux example
+// actions.js
+export const FETCH_DATA_REQUEST = 'FETCH_DATA_REQUEST';
+export const FETCH_DATA_SUCCESS = 'FETCH_DATA_SUCCESS';
+export const FETCH_DATA_FAILURE = 'FETCH_DATA_FAILURE';
+
+export const fetchDataRequest = () => ({ type: FETCH_DATA_REQUEST });
+export const fetchDataSuccess = (data) => ({ type: FETCH_DATA_SUCCESS, payload: data });
+export const fetchDataFailure = (error) => ({ type: FETCH_DATA_FAILURE, payload: error });
+
+export const fetchData = () => {
+    return async (dispatch) => {
+        dispatch(fetchDataRequest());
+        try {
+            const response = await ApiService.get('data');
+            dispatch(fetchDataSuccess(response));
+        } catch (error) {
+            dispatch(fetchDataFailure(error));
+        }
+    };
+};
+
+// reducer.js
+const initialState = {
+    data: null,
+    loading: false,
+    error: null,
+};
+
+const dataReducer = (state = initialState, action) => {
+    switch (action.type) {
+        case FETCH_DATA_REQUEST:
+            return { ...state, loading: true, error: null };
+        case FETCH_DATA_SUCCESS:
+            return { ...state, loading: false, data: action.payload };
+        case FETCH_DATA_FAILURE:
+            return { ...state, loading: false, error: action.payload };
+        default:
+            return state;
+    }
+};
+
+export default dataReducer;
+
+// component.js
+import React, { useEffect } from 'react';
+import { View, Text, ActivityIndicator } from 'react-native';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchData } from './actions';
+
+const MyComponent = () => {
+    const dispatch = useDispatch();
+    const data = useSelector((state) => state.data.data);
+    const loading = useSelector((state) => state.data.loading);
+    const error = useSelector((state) => state.data.error);
+
+    useEffect(() => {
+        dispatch(fetchData());
+    }, [dispatch]);
+
+    if (loading) {
+        return <ActivityIndicator size="large" />;
+    }
+
+    if (error) {
+        return <Text>Error: {error.message || 'An error occurred'}</Text>;
+    }
+
+    return (
+        <View>
+            <Text>Data: {data ? JSON.stringify(data) : 'No data'}</Text>
+        </View>
+    );
+};
+
+export default MyComponent;
+"""
+
+## 5. Performance Optimization
+
+### 5.1. Caching API Responses
+
+**Standard:** Cache API responses to reduce network requests and improve performance.
+
+*   **Do This:** Use in-memory caching or persistent storage (e.g., "AsyncStorage") to store API responses. Utilize libraries like "react-native-cache" or implement custom caching logic.
+*   **Don't Do This:** Cache sensitive data without proper encryption or ignore cache invalidation.
+
+**Why:** Caching reduces latency and bandwidth usage, resulting in a faster and more responsive application.
+
+"""javascript
+// Caching with AsyncStorage
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const CACHE_KEY = 'api_data';
+const CACHE_EXPIRY = 60 * 60 * 1000; // 1 hour
+
+const ApiService = {
+    getData: async () => {
+        const cachedData = await AsyncStorage.getItem(CACHE_KEY);
+        const cacheExpiry = await AsyncStorage.getItem("${CACHE_KEY}_expiry");
+
+        if (cachedData && cacheExpiry && Date.now() < parseInt(cacheExpiry)) {
+            console.log('Using cached data');
+            return JSON.parse(cachedData);
+        }
+
+        const response = await axios.get("${API_BASE_URL}/data");
+        const data = response.data;
+
+        await AsyncStorage.setItem(CACHE_KEY, JSON.stringify(data));
+        await AsyncStorage.setItem("${CACHE_KEY}_expiry", Date.now() + CACHE_EXPIRY);
+
+        return data;
+    }
+};
+
+"""
+
+### 5.2. Using Memoization
+
+**Standard:** Use memoization techniques to prevent unnecessary API calls.
+
+*   **Do This:** Use "React.memo" for functional components and "shouldComponentUpdate" for class components to memoize API results based on props.
+*   **Don't Do This:** Make redundant API calls when the data hasn't changed.
+
+**Why:** Memoization optimizes rendering performance by preventing re-renders when the input props haven't changed.
+
+"""javascript
+import React from 'react';
+import { View, Text } from 'react-native';
+
+const MyComponent = React.memo(({ data }) => {
+    console.log('Rendering MyComponent');
+    return (
+        <View>
+            <Text>Data: {JSON.stringify(data)}</Text>
+        </View>
+    );
+});
+
+export default MyComponent;
+"""
+
+### 5.3. Batching API Requests
+
+**Standard:** Batch multiple API requests into a single request to reduce network overhead.
+
+*   **Do This:** Use techniques like GraphQL or custom batching endpoints to combine multiple requests.
+*   **Don't Do This:** Make numerous small API calls when the data can be retrieved in a single request.
+
+**Why:** Batching reduces the number of HTTP requests, improving performance, especially on slow or unreliable networks.
+
+## 6. Security Best Practices
+
+### 6.1. Input Validation
+
+**Standard:** Validate all user inputs before sending them to the API.
+
+*   **Do This:** Use validation libraries (e.g., "yup", "joi") to validate input data and sanitize user input to prevent injection attacks.
+*   **Don't Do This:** Trust user input without validation.
+
+**Why:** Input validation prevents malicious data from being sent to the server, protecting against security vulnerabilities.
+
+"""javascript
+import * as yup from 'yup';
+
+const schema = yup.object().shape({
+    username: yup.string().required().min(3).max(20),
+    password: yup.string().required().min(8),
+    email: yup.string().email().required(),
+});
+
+const validateInput = async (data) => {
+    try {
+        await schema.validate(data, { abortEarly: false });
+        return { valid: true, errors: null };
+    } catch (error) {
+        const errors = {};
+        error.inner.forEach(err => {
+            errors[err.path] = err.message;
+        });
+        return { valid: false, errors };
+    }
+};
+
+// Example Usage
+const handleSubmit = async (data) => {
+  const { valid, errors } = await validateInput(data);
+  if (valid) {
+      // Submit data to API
+      try {
+          await ApiService.post('register', data);
+      } catch (error) {
+          // Handle API error
+      }
+  } else {
+      // Display validation errors
+      console.log(errors);
+  }
+};
+"""
+
+### 6.2. HTTPS
+
+**Standard:** Use HTTPS for all API requests to encrypt data in transit.
+
+*   **Do This:** Ensure that all API endpoints use HTTPS. Configure your HTTP client to enforce HTTPS.
+*   **Don't Do This:** Use HTTP for sensitive data transmission.
+
+**Why:** HTTPS protects data from eavesdropping and tampering during transmission.
+
+### 6.3. Rate Limiting
+
+**Standard:** Implement rate limiting on the server-side to prevent abuse and denial-of-service attacks.
+
+*   **Do This:** Monitor API usage and implement rate limiting to protect against abuse.
+*   **Don't Do This:** Allow unlimited API requests from a single client.
+
+**Why:** Rate limiting prevents malicious users from overwhelming the server with excessive requests. This is enforced server-side, but understanding this interaction is important for client-side development.
+
+## 7. Testing
+
+### 7.1. Unit Testing
+
+**Standard:** Write unit tests for API service functions.
+
+*   **Do This:** Use testing frameworks (e.g., Jest) to test API service functions in isolation. Mock API dependencies to ensure test stability.
+*   **Don't Do This:** Skip unit testing for API integration logic.
+
+**Why:** Unit tests verify that API service functions work correctly and help prevent regressions.
+
+"""javascript
+// ApiService.test.js
+import ApiService from './ApiService';
+import axios from 'axios';
+
+jest.mock('axios');
+
+describe('ApiService', () => {
+    it('should fetch data successfully', async () => {
+        const mockData = { message: 'Success' };
+        axios.get.mockResolvedValue({ data: mockData });
+
+        const data = await ApiService.getData();
+        expect(data).toEqual(mockData);
+        expect(axios.get).toHaveBeenCalledWith("${API_BASE_URL}/data");
+    });
+
+    it('should handle errors when fetching data', async () => {
+        const mockError = new Error('Request failed');
+        axios.get.mockRejectedValue(mockError);
+
+        await expect(ApiService.getData()).rejects.toThrow(mockError);
+        expect(axios.get).toHaveBeenCalledWith("${API_BASE_URL}/data");
+    });
+});
+
+"""
+
+### 7.2. Integration Testing
+
+**Standard:** Write integration tests to verify the interaction between the UI and the API.
+
+*   **Do This:** Use testing frameworks (e.g., Detox, Appium) to test end-to-end scenarios involving API calls.
+*   **Don't Do This:** Skip integration testing, which can lead to undetected issues in the API integration.
+
+**Why:** Integration tests verify that the UI and API work together correctly, ensuring a seamless user experience.
+
+## 8. Monitoring and Logging
+
+### 8.1. Logging API Requests and Responses
+
+**Standard:** Log API requests and responses for debugging and monitoring purposes.
+
+*   **Do This:** Use logging libraries (e.g., "react-native-logs") to log API requests, responses, and errors. Be mindful of privacy considerations and avoid logging sensitive data.
+*   **Don't Do This:** Ignore logging, which makes it difficult to diagnose and resolve issues.
+
+**Why:** Logging provides valuable insights into API usage and helps identify and resolve issues quickly.
+
+### 8.2. Monitoring API Performance
+
+**Standard:** Monitor API performance metrics to identify bottlenecks and optimize performance.
+
+*   **Do This:** Use monitoring tools (e.g., New Relic, Datadog) to track API response times, error rates, and resource usage.
+*   **Don't Do This:** Ignore API performance, which can lead to slow and unresponsive applications.
+
+**Why:** Monitoring helps identify and resolve performance issues proactively, ensuring a smooth user experience.
+
+By adhering to these coding standards and best practices, React Native developers can create robust, efficient, and secure applications that integrate seamlessly with backend services and external APIs. This comprehensive guide serves as a valuable resource for professional development teams aiming to achieve high-quality code and maintainable applications. Remember to stay updated with the latest React Native features and adapt these standards as needed to suit your specific project requirements.
